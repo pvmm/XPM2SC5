@@ -5,12 +5,18 @@
 #include <stdint.h>
 #include <alloca.h>
 
-/* included generated image */
-#include "image.xpm"
+
+#ifdef XPM_FILE
+# include XPM_FILE
+#else
+# include "mines.xpm"
+# define XPM_FILE mines_xpm
+#endif
 
 #define debug(x...)
 #define MAX_COLORS 16
 #define XPM2SC5 "XPM-to-SC5"
+
 
 struct palette {
     int8_t ci;
