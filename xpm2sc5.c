@@ -4,19 +4,15 @@
 #include <string.h>
 #include <stdint.h>
 #include <alloca.h>
-
+#include <ctype.h>
 
 #ifdef XPM_FILE
 # include XPM_FILE
 #else
-# include "mines.xpm"
-# define XPM_FILE mines_xpm
+# error XPM_FILE not defined
 #endif
 
-#define debug(x...)
 #define MAX_COLORS 16
-#define XPM2SC5 "XPM-to-SC5"
-
 
 struct palette {
     int8_t ci;
@@ -33,7 +29,7 @@ struct palette {
 void register_color(struct palette* palette, int index, int8_t hw_color, int cpp)
 {
     unsigned int rr, gg, bb;
-    const char* s = mines_xpm[index + 1];
+    const char* s = XPM_DATA[index + 1];
 
     sscanf(&s[cpp], "\tc #%02x%02x%02x", &rr, &gg, &bb);
     rr = rr & 0xff;
@@ -67,15 +63,15 @@ int8_t find_color(struct palette* palette, int colors, const char* const pos, in
         }
     }
 
-    fprintf(stderr, XPM2SC5 ": color index '%.*s' unknown\n", cpp, pos);
+    fprintf(stderr, XPM_LABEL ": color index '%.*s' unknown\n", cpp, pos);
     exit(-5);
 }
 
 
-bool is_color_used(const char* const cs, int cpp, int colors, int width, int height)
+bool is_used_color(const char* const cs, int cpp, int colors, int width, int height)
 {
     for (int y = 0; y < height ; ++y) {
-        const char* pos = mines_xpm[y + colors + 1];
+        const char* pos = XPM_DATA[y + colors + 1];
 
         for (int x = 0; x < width; x++) {
             if (strncmp(pos, cs, cpp) == 0) {
@@ -89,26 +85,54 @@ bool is_color_used(const char* const cs, int cpp, int colors, int width, int hei
 }
 
 
+char* strlower(char* const s)
+{
+    static char t[50];
+    char *q = t;
+
+    for (char* p = s; *p; ++p, ++q) *q = tolower(*p);
+    return t;
+}
+
+
+enum MODE {
+    STDOUT = 0,                 // send C-style data to standard output
+    HEADER,                     // header mode has no pattern and palette data
+    RAW,                        // raw mode prints data byte directly to binary file
+};
+
+
 int main(int argc, char **argv)
 {
     int width;
     int height;
     int colors;
     int used_colors;
+    enum MODE mode = STDOUT;
+    FILE *file = NULL;
     int cpp;
 
-    if (argc < 2) {
-        fprintf(stderr, XPM2SC5 ": expects name of image array\n");
-        exit(-1);
+    for (int i = 1; i < argc; ++i) {
+        if (strcmp(argv[i], "--header") == 0) {
+            mode = HEADER;
+	}
+	if (strcmp(argv[i], "--raw") == 0) {
+            mode = RAW;
+            if (argc == i + 1) {
+                fprintf(stderr, XPM_LABEL ": expects raw filename\n");
+                exit(-1);
+            }
+	    file = fopen(argv[i+1], "wb");
+	}
     }
 
-    sscanf(mines_xpm[0], "%d %d %d %d", &width, &height, &colors, &cpp);
+    sscanf(XPM_DATA[0], "%d %d %d %d", &width, &height, &colors, &cpp);
     if (width & 1) {
-        fprintf(stderr, XPM2SC5 ": expects even width\n");
+        fprintf(stderr, XPM_LABEL ": expects even width\n");
         exit(-2);
     }
     if (width > 256) {
-        fprintf(stderr, XPM2SC5 ": expects maximum width of 256 pixels\n");
+        fprintf(stderr, XPM_LABEL ": expects maximum width of 256 pixels\n");
         exit(-3);
     }
 
@@ -118,54 +142,112 @@ int main(int argc, char **argv)
 
     /* find used colors first */
     for (int c = 0; c < colors; ++c) {
-        char* s = mines_xpm[c + 1];
-        debug(stderr, "color [%s]\n", s);
-        if (is_color_used(s, cpp, colors, width, height) != false) {
+        char* s = XPM_DATA[c + 1];
+        fprintf(stderr, XPM_LABEL ": color [%s]\n", s);
+        if (is_used_color(s, cpp, colors, width, height) != false) {
             ++used_colors;
-	    debug(stderr, "pixel '%.*s' registered as color #%i from table at %i'\n", cpp, s, used_colors, c + 1);
+            fprintf(stderr, XPM_LABEL ": pixel '%.*s' registered as color #%i from table at %i'\n",
+                    cpp, s, used_colors, c + 1);
             register_color(palette, c, used_colors, cpp);
         }
     }
     if (used_colors >= MAX_COLORS) {
-        fprintf(stderr, XPM2SC5 ": expects max of 15 used colors\n");
+        fprintf(stderr, XPM_LABEL ": expects max of 15 used colors\n");
         exit(-4);
     }
 
-    printf("#include <stdint.h>\n\n");
+    switch (mode) {
 
-    printf("static const uint8_t %s_palette[] = {\n", argv[1]);
+    case HEADER:
+        printf("#include <stdint.h>\n\n");
+        printf("#define " XPM_LABEL "_WIDTH %u\n", width);
+        printf("#define " XPM_LABEL "_HEIGHT %u\n\n", height);
+        printf("extern const uint8_t %s_palette[];\n\n", strlower(XPM_LABEL));
+	break;
 
-    for (int8_t i = 0; i <= colors; ++i) {
-        if (palette[i].ci) {
-            printf("\t%2i, %u,%u,%u, /* %X, %X, %X */\n", palette[i].ci, palette[i].r, palette[i].g, palette[i].b,
-                    palette[i].rr, palette[i].gg, palette[i].bb);
+    case STDOUT:
+        printf("static const uint8_t %s_palette[] = {\n", strlower(XPM_LABEL));
+
+        for (int8_t i = 0; i <= colors; ++i) {
+            if (palette[i].ci) {
+                printf("\t%2i, %u,%u,%u, /* 0x%02X, 0x%02X, 0x%02X */\n",
+                       palette[i].ci,
+                       palette[i].r, palette[i].g, palette[i].b,
+                       palette[i].rr, palette[i].gg, palette[i].bb);
+            }
         }
+        printf("};\n\n");
+	break;
+
+    default:
+
     }
 
-    printf("};\n\nstatic const uint8_t %s_data[] = {\n\t", argv[1]);
+    switch (mode) {
+
+    case HEADER:
+        printf("extern const uint8_t %s_data[];\n\n", strlower(XPM_LABEL));
+        break;
+
+    case STDOUT:
+        printf("static const uint8_t %s_data[] = {\n\t", strlower(XPM_LABEL));
+        break;
+
+    default:
+    }
+
     unsigned int pos = 0;
 
-    for (int y = 0; y < height ; ++y) {
-        const char* line = mines_xpm[y + colors + 1];
+    if (mode != HEADER) {
+        for (int y = 0; y < height ; ++y) {
+            const char* line = XPM_DATA[y + colors + 1];
 
-        for (int x = 0; x < width; x += 2) {
-            uint8_t pixel1, pixel2;
+            for (int x = 0; x < width; x += 2) {
+                uint8_t pixel1, pixel2;
 
-            if (pos > 0 && pos % 24 == 0) printf("\n\t");
+                pixel1 = find_color(palette, colors, line, cpp);
+                line += cpp;
 
-            pixel1 = find_color(palette, colors, line, cpp);
-            line += cpp;
+                pixel2 = find_color(palette, colors, line, cpp);
+                line += cpp;
 
-            pixel2 = find_color(palette, colors, line, cpp);
-            line += cpp;
+                switch (mode) {
 
-            printf("0x%02X,", (pixel1 << 4) | pixel2);
+                case STDOUT:
+                     if (pos > 0 && pos % 24 == 0) printf("\n\t");
+                     printf("0x%02X,", (pixel1 << 4) | pixel2);
+                     break;
 
-	    pos += 2;
+		case RAW: {
+                     char data[1] = { (pixel1 << 4) | pixel2 };
+                     fwrite(data, 1, 1, file);
+                     break;
+
+                }}
+
+                pos += 2;
+            }
         }
+
+	if (mode == STDOUT) {
+            if (pos > 0) printf("\n");
+            printf("};\n\n");
+	}
+    } else {
+        pos += height * width;
     }
 
-    if (pos > 0) printf("\n");
-    printf("};\n/* %s_size = %i */\n", argv[1], pos / 2);
+    switch (mode) {
+
+    case HEADER:
+        printf("#define " XPM_LABEL "_SIZE %u\n", pos / 2);
+	break;
+
+    case RAW:
+        fclose(file);
+	break;
+
+    default:
+    }
 }
 

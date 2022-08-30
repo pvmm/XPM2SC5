@@ -1,5 +1,5 @@
 /* XPM */
-static char * mines_xpm[] = {
+static char * image_xpm[] = {
 "256 56 15 1",
 "-	c #000000",
 "#	c #202020",
