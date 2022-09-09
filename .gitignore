@@ -1,2 +1,4 @@
 .*.swp
-xpm2sc5
+*.h
+*.raw
+converter

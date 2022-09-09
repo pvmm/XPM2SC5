@@ -1,35 +1,47 @@
 CC := gcc
 ASSETS_DIR := .
-INPUT_FILE := $(ASSETS_DIR)/$(XPM).xpm
+
+TMP := $(basename $(MAKECMDGOALS))
+EXT := $(suffix $(MAKECMDGOALS))
+INPUT_FILE := $(ASSETS_DIR)/$(TMP).xpm
+NAME := $(basename $(TMP))
 
 # get XPM_DATA field from file contents
 FIELD := $(shell sed -n '/static/p' $(INPUT_FILE) | sed 's/^static\s\+char\s\+\*\s\+\(\w\+\).\+/\1/')
 
 XPM_INCLUDE := -DXPM_FILE="\"$(INPUT_FILE)\""
-XPM2 := $(subst -,_,$(XPM))
+TAG_NAME := $(guile (string-upcase "$(subst -,_,$(NAME))"))
 CFLAGS := $(CFLAGS) -I.
-BUILDDIR := .
-OUTPUT_FILE := $(BUILDDIR)/$(XPM)
-TARGET := $(BUILDDIR)/$(XPM)
+BUILD_DIR := ./build
+OUTPUT_FILE := $(BUILDDIR)/$(NAME)
+TARGET := $(BUILDDIR)/$(NAME)
 
-.PHONY: clean $(XPM).c $(XPM).h $(XPM).raw
+.PHONY: clean $(NAME).c $(NAME).h $(NAME).raw
 
-.DELETE_ON_ERROR:
-$(XPM).h: xpm2sc5.c $(INPUT_FILE)
-	$(CC) $(CFLAGS) $(XPM_INCLUDE) -DXPM_DATA="$(FIELD)" -DXPM_LABEL="\"$(guile (string-upcase "$(XPM2)"))\"" -o $(basename $(OUTPUT_FILE)) $<
-	$(basename $(OUTPUT_FILE)) $(INPUT_FILE) > $(OUTPUT_FILE).h
-	rm $(OUTPUT_FILE)
+$(BUILD_DIR):
+	mkdir -p $(BUILD_DIR)
 
 .DELETE_ON_ERROR:
-$(XPM).c: xpm2sc5.c $(INPUT_FILE)
-	$(CC) $(CFLAGS) $(XPM_INCLUDE) -DXPM_DATA="$(FIELD)" -DXPM_LABEL="\"$(guile (string-upcase "$(XPM2)"))\"" -o $(basename $(OUTPUT_FILE)) $<
-	$(basename $(OUTPUT_FILE)) > $(OUTPUT_FILE).c
-	$(basename $(OUTPUT_FILE)) --header > $(OUTPUT_FILE).h
-	rm $(OUTPUT_FILE)
+$(NAME).h: converter.c $(INPUT_FILE) $(BUILD_DIR)
+	echo BUILD_DIR=$(BUILD_DIR)
+	$(CC) $(CFLAGS) $(XPM_INCLUDE) -DXPM_DATA="$(FIELD)" -DXPM_LABEL="\"$(guile (string-upcase "$(TAG_NAME)"))\"" -o $(BUILD_DIR)$(basename $(OUTPUT_FILE)) $<
+	$(basename $(OUTPUT_FILE)) $(INPUT_FILE) > $(BUILD_DIR)$(OUTPUT_FILE).h
+	rm $(BUILD_DIR)$(basename $(OUTPUT_FILE))
 
 .DELETE_ON_ERROR:
-$(XPM).raw: xpm2sc5.c $(INPUT_FILE)
-	$(CC) $(CFLAGS) $(XPM_INCLUDE) -DXPM_DATA="$(FIELD)" -DXPM_LABEL="\"$(guile (string-upcase "$(XPM2)"))\"" -o $(basename $(OUTPUT_FILE)) $<
-	$(basename $(OUTPUT_FILE)) --raw $(OUTPUT_FILE).raw
-	$(basename $(OUTPUT_FILE)) --header > $(OUTPUT_FILE).h
-	rm $(OUTPUT_FILE)
+$(NAME).c: converter.c $(INPUT_FILE) $(BUILD_DIR)
+	$(CC) $(CFLAGS) $(XPM_INCLUDE) -DXPM_DATA="$(FIELD)" -DXPM_LABEL="\"$(guile (string-upcase "$(TAG_NAME)"))\"" -o $(BUILD_DIR)$(basename $(OUTPUT_FILE)) $<
+	$(basename $(OUTPUT_FILE)) > $(BUILD_DIR)$(OUTPUT_FILE).c
+	$(basename $(OUTPUT_FILE)) --header > $(BUILD_DIR)$(OUTPUT_FILE).h
+	rm $(BUILD_DIR)$(basename $(OUTPUT_FILE))
+
+.DELETE_ON_ERROR:
+$(NAME).raw: converter.c $(INPUT_FILE) $(BUILD_DIR)
+	echo BUILD_DIR=$(BUILD_DIR)
+	$(CC) $(CFLAGS) $(XPM_INCLUDE) -DXPM_DATA="$(FIELD)" -DXPM_LABEL="\"$(guile (string-upcase "$(TAG_NAME)"))\"" -o $(BUILD_DIR)$(basename $(OUTPUT_FILE)) $<
+	$(BUILD_DIR)$(basename $(OUTPUT_FILE)) --raw $(BUILD_DIR)$(OUTPUT_FILE).raw
+	$(BUILD_DIR)$(basename $(OUTPUT_FILE)) --header > $(BUILD_DIR)$(OUTPUT_FILE).h
+	rm $(BUILD_DIR)$(basename $(OUTPUT_FILE))
+
+clean:
+	rm -rf $(BUILD_DIR)
