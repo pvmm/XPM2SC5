@@ -39,8 +39,9 @@ $(NAME).c: converter.c $(INPUT_FILE) $(BUILD_DIR)
 $(NAME).raw: converter.c $(INPUT_FILE) $(BUILD_DIR)
 	echo BUILD_DIR=$(BUILD_DIR)
 	$(CC) $(CFLAGS) $(XPM_INCLUDE) -DXPM_DATA="$(FIELD)" -DXPM_LABEL="\"$(guile (string-upcase "$(TAG_NAME)"))\"" -o $(BUILD_DIR)$(basename $(OUTPUT_FILE)) $<
-	$(BUILD_DIR)$(basename $(OUTPUT_FILE)) --raw $(BUILD_DIR)$(OUTPUT_FILE).raw
-	$(BUILD_DIR)$(basename $(OUTPUT_FILE)) --header > $(BUILD_DIR)$(OUTPUT_FILE).h
+	$(BUILD_DIR)$(basename $(OUTPUT_FILE)) --contains-paleete --raw $(BUILD_DIR)$(OUTPUT_FILE).raw
+	$(BUILD_DIR)$(basename $(OUTPUT_FILE)) --contains-palette --basic $(BUILD_DIR)$(OUTPUT_FILE).bin
+	$(BUILD_DIR)$(basename $(OUTPUT_FILE)) --contains-palette --header > $(BUILD_DIR)$(OUTPUT_FILE).h
 	rm $(BUILD_DIR)$(basename $(OUTPUT_FILE))
 
 clean:

@@ -27,6 +27,7 @@ enum MODE {
     STDOUT = 0,                 // send C-style data to standard output
     HEADER,                     // no pattern and palette data, just the declarations
     RAW,                        // raw mode prints data byte directly to binary file
+    BASIC,                      // raw mode + width/height header
 } mode = STDOUT;
 
 enum SCREEN_TYPE {
@@ -177,6 +178,17 @@ int main(int argc, char **argv)
             fprintf(stderr, XPM_LABEL ": unknown option \"%s\"\n", argv[i]);
             exit(-1);
         }
+        else if (mode == STDOUT && strcmp(argv[i], "--basic") == 0) {
+            mode = BASIC;
+            if (argc == i + 1) {
+                fprintf(stderr, XPM_LABEL ": expects filename after \"--basic\"\n");
+                exit(-1);
+            }
+            file = fopen(argv[i + 1], "wb");
+        } else if (strcmp(argv[i], "--") == 0) {
+            fprintf(stderr, XPM_LABEL ": unknown option \"%s\"\n", argv[i]);
+            exit(-1);
+        }
     }
 
     sscanf(XPM_DATA[0], "%d %d %d %d", &width, &height, &colors, &cpp);
@@ -292,6 +304,10 @@ int main(int argc, char **argv)
     unsigned int pos = 0;
 
     if (mode != HEADER) {
+        if (mode == BASIC) {
+            uint8_t header[4] = { width >> 8, width & 0xff, height >> 8, height & 0xff };
+            fwrite(header, 1, 4, file);
+        }
         for (int y = contains_palette ? 1 : 0; y < height ; ++y) {
             const char* line = XPM_DATA[y + colors + 1];
             uint8_t pixel1, pixel2;
@@ -309,6 +325,7 @@ int main(int argc, char **argv)
                      printf("0x%02X,", (pixel1 << 4) | pixel2);
                      break;
 
+                case BASIC:
                 case RAW: {
                      uint8_t data[1] = { (pixel1 << 4) | pixel2 };
                      fwrite(data, 1, 1, file);
@@ -332,6 +349,7 @@ int main(int argc, char **argv)
         printf("#define " XPM_LABEL "_SIZE %u\n", pos / 2);
         break;
 
+    case BASIC:
     case RAW:
         fclose(file);
         break;
