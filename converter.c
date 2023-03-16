@@ -5,6 +5,8 @@
 #include <stdint.h>
 #include <alloca.h>
 #include <ctype.h>
+#include <assert.h>
+
 
 #ifdef XPM_FILE
 # include XPM_FILE
@@ -167,24 +169,16 @@ int main(int argc, char **argv)
         else if (mode == STDOUT && strcmp(argv[i], "--header") == 0) {
             mode = HEADER;
         }
-        else if (mode == STDOUT && strcmp(argv[i], "--raw") == 0) {
-            mode = RAW;
+        else if ((mode == STDOUT || mode == BASIC) && strcmp(argv[i], "--raw") == 0) {
+            if (mode == STDOUT) mode = RAW;
             if (argc == i + 1) {
                 fprintf(stderr, XPM_LABEL ": expects raw filename after \"--raw\"\n");
                 exit(-1);
             }
             file = fopen(argv[i + 1], "wb");
-        } else if (strcmp(argv[i], "--") == 0) {
-            fprintf(stderr, XPM_LABEL ": unknown option \"%s\"\n", argv[i]);
-            exit(-1);
         }
-        else if (mode == STDOUT && strcmp(argv[i], "--basic") == 0) {
+        else if (strcmp(argv[i], "--basic") == 0) {
             mode = BASIC;
-            if (argc == i + 1) {
-                fprintf(stderr, XPM_LABEL ": expects filename after \"--basic\"\n");
-                exit(-1);
-            }
-            file = fopen(argv[i + 1], "wb");
         } else if (strcmp(argv[i], "--") == 0) {
             fprintf(stderr, XPM_LABEL ": unknown option \"%s\"\n", argv[i]);
             exit(-1);
@@ -289,6 +283,22 @@ int main(int argc, char **argv)
         }
     }
 
+    else if (mode == BASIC) {
+        if (data == PALETTE) {
+            printf("10 SCREEN 5\r\n");
+            for (int8_t i = 1; i < colors; ++i) {
+                printf("%i COLOR=(%i,%i,%i,%i)\r\n", (i + 1) * 10, i, palette[i].r, palette[i].g, palette[i].b);
+            }
+            int index = colors * 10;
+            printf("%i COPY \"IMAGE.BIN\" TO (0,0),0\r\n", index += 10);
+            printf("%i IF INKEY$=\"\" GOTO %i\r\n", index += 10, index);
+            printf("%i COPY (0,0)-(254,212),0 TO (1,0),0,XOR\r\n", index += 10);
+            printf("%i IF INKEY$=\"\" GOTO %i\r\n", index += 10, index);
+            exit(0);
+        }
+    }
+
+
     switch (mode) {
     case HEADER:
         printf("extern const uint8_t %s_data[];\n\n", strlower(XPM_LABEL));
@@ -305,7 +315,8 @@ int main(int argc, char **argv)
 
     if (mode != HEADER) {
         if (mode == BASIC) {
-            uint8_t header[4] = { width >> 8, width & 0xff, height >> 8, height & 0xff };
+            uint8_t header[4] = { width & 0xff, width >> 8, (height - (contains_palette ? 1 : 0)) & 0xff, (height - (contains_palette ? 1 : 0)) >> 8 };
+            assert(file != NULL);
             fwrite(header, 1, 4, file);
         }
         for (int y = contains_palette ? 1 : 0; y < height ; ++y) {
@@ -325,8 +336,7 @@ int main(int argc, char **argv)
                      printf("0x%02X,", (pixel1 << 4) | pixel2);
                      break;
 
-                case BASIC:
-                case RAW: {
+                case BASIC: case RAW: {
                      uint8_t data[1] = { (pixel1 << 4) | pixel2 };
                      fwrite(data, 1, 1, file);
                      break;
@@ -345,12 +355,11 @@ int main(int argc, char **argv)
 
     switch (mode) {
     case HEADER:
-        fprintf(stderr, XPM_LABEL ": %i, %i\n", height, height - (contains_palette ? 1 : 0));
+        fprintf(stderr, XPM_LABEL ": %i\n", height - (contains_palette ? 1 : 0));
         printf("#define " XPM_LABEL "_SIZE %u\n", pos / 2);
         break;
 
-    case BASIC:
-    case RAW:
+    case BASIC: case RAW:
         fclose(file);
         break;
 
