@@ -132,7 +132,7 @@ int main(int argc, char **argv)
     int change_to_black = -1;           // when greater than -1, color index is encoded as black
 
     for (int i = 1; i < argc; ++i) {
-        // screen
+        // screen type
         if (strcmp(argv[i], "--screen5") == 0) {
             screen = SCREEN5;
         }
