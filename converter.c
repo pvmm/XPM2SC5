@@ -19,10 +19,10 @@
 #define MAX_V9990_COLORS   16
 // error codes
 #define OK                 0
-#define PARAMETER_EXPECTED -1
-#define PARAMETER_TYPE     -2
-#define MODE_MISMATCH      -3
-#define INVALID_VALUE      -4
+#define PARAMETER_EXPECTED 1
+#define PARAMETER_TYPE     2
+#define MODE_MISMATCH      3
+#define INVALID_VALUE      4
 
 
 enum DATA_TYPE {
@@ -44,7 +44,7 @@ enum SCREEN_TYPE {
 } screen = SCREEN5;
 
 struct palette {
-    int8_t ci;
+    int8_t ci;                  // color index
     uint8_t r;                  // 5bit red (P1) / 3bit red (SC5)
     uint8_t rr;                 // original red
     uint8_t g;                  // 5bit green (P1) / 3bit green (SC5)
@@ -58,10 +58,10 @@ struct palette {
 char* trans_color = NULL;
 
 
-void register_color(struct palette* palette, int index, int8_t hw_color, int cpp)
+void register_color(struct palette* palette, int file_index, int8_t hw_index, int cpp)
 {
     unsigned int rr, gg, bb;
-    const char* s = XPM_DATA[index + 1];
+    const char* s = XPM_DATA[file_index];
     int component = (screen == P1) ? 31 : 7;
 
     sscanf(&s[cpp], "\tc #%02x%02x%02x", &rr, &gg, &bb);
@@ -69,15 +69,15 @@ void register_color(struct palette* palette, int index, int8_t hw_color, int cpp
     gg = gg & 0xff;
     bb = bb & 0xff;
 
-    palette[index].ci = hw_color;
-    palette[index].r = (uint8_t) ((double) rr) * component / 0xff;
-    palette[index].g = (uint8_t) ((double) gg) * component / 0xff;
-    palette[index].b = (uint8_t) ((double) bb) * component / 0xff;
-    palette[index].s = s;
+    palette->ci = hw_index;
+    palette->r = (uint8_t) ((double) rr) * component / 0xff;
+    palette->g = (uint8_t) ((double) gg) * component / 0xff;
+    palette->b = (uint8_t) ((double) bb) * component / 0xff;
+    palette->s = s;
 
-    palette[index].rr = rr;
-    palette[index].gg = gg;
-    palette[index].bb = bb;
+    palette->rr = rr;
+    palette->gg = gg;
+    palette->bb = bb;
 }
 
 
@@ -89,7 +89,8 @@ int8_t find_color(struct palette* palette, int colors, const char* const pos, in
         return palette[cached_color].ci;
     }
 
-    for (int i = 0; i < colors; ++i) {
+    fprintf(stderr, XPM_LABEL ": used colors = %i\n", colors);
+    for (int i = (trans_color != NULL ? 0 : 1); i < colors; ++i) {
         if (strncmp(pos, palette[i].s, cpp) == 0) {
             cached_color = i;
             return palette[cached_color].ci;
@@ -103,14 +104,14 @@ int8_t find_color(struct palette* palette, int colors, const char* const pos, in
 
 bool is_used_color(const char* const cs, int cpp, int colors, int width, int height)
 {
-    for (int y = 0; y < height ; ++y) {
-        const char* pos = XPM_DATA[y + colors + 1];
+    for (int y = 0; y < height; ++y) {
+        const char* ptr = XPM_DATA[y + colors + 1];
 
         for (int x = 0; x < width; x++) {
-            if (strncmp(pos, cs, cpp) == 0) {
+            if (strncmp(ptr, cs, cpp) == 0) {
                 return true;
             }
-            pos += cpp;
+            ptr += cpp;
         }
     }
 
@@ -182,7 +183,7 @@ int main(int argc, char **argv)
             }
             sscanf(argv[i + 1], "%as", &trans_color);
             if (trans_color[0] == '#') ++trans_color;
-            fprintf(stderr, "trans-color = %s\n", trans_color);
+            fprintf(stderr, "trans color = %s\n", trans_color);
             skip_next = true;
             continue;
         }
@@ -243,27 +244,39 @@ int main(int argc, char **argv)
 
     struct palette* palette = alloca(sizeof(struct palette) * colors);
     memset(palette, 0, sizeof(struct palette) * colors);
-    used_colors = 0;
+    struct palette* ptr = &palette[1];
+    int replace_count = 0;
+    used_colors = trans_color != NULL ? 0 : 1;
 
     /* find colors first */
-    for (int c = 0; c < colors; ++c) {
-        char* s = XPM_DATA[c + 1];
-        fprintf(stderr, XPM_LABEL ": color [%s] = index %i\n", s, c);
-        if (keep_unused && c < MAX_SCREEN5_COLORS) {
-            register_color(palette, c, used_colors, cpp);
-            ++used_colors;
+    for (int c = 1; c < colors + 1; ++c) {
+        char* s = XPM_DATA[c];
+        char* rgb = s + cpp + 4;
+        //fprintf(stderr, XPM_LABEL ": color [%s] = #%i\n", rgb, c);
+        if (trans_color != NULL && strcmp(rgb, trans_color) == 0) {
+            if (!replace_count) {
+                fprintf(stderr, XPM_LABEL ": trans_color [%i] found\n", c);
+                register_color(&palette[0], c, 0, cpp);
+            } else {
+                fprintf(stderr, XPM_LABEL ": WARNING: trans_color found at %i\n", c);
+            }
+            replace_count++;
+        }
+        else if (keep_unused && used_colors < MAX_SCREEN5_COLORS) {
+            register_color(ptr++, c, used_colors++, cpp);
         } else {
             if (is_used_color(s, cpp, colors, width, height) != false) {
+                register_color(ptr++, c, used_colors++, cpp);
                 fprintf(stderr, XPM_LABEL ": string '%.*s' registered as color #%i from table at %i'\n",
-                        cpp, s, used_colors, c + 1);
-                register_color(palette, c, used_colors, cpp);
-                ++used_colors;
+                        cpp, s, used_colors, c);
             } else {
                 fprintf(stderr, XPM_LABEL ": string '%.*s' discarded because not used\n", cpp, s);
             }
         }
     }
     fprintf(stderr, XPM_LABEL ": %i colors discarted\n", colors - used_colors);
+    fprintf(stderr, XPM_LABEL ": used colors = %i\n", used_colors);
+    fprintf(stderr, XPM_LABEL ": trans color is %s\n", trans_color == NULL ? "(nil)" : "not (nil)");
 
     if (screen == SCREEN5 && used_colors > MAX_SCREEN5_COLORS) {
         fprintf(stderr, XPM_LABEL ": expects max of 15 used colors, got %i (first color (0) is transparent)\n", used_colors);
@@ -368,15 +381,15 @@ int main(int argc, char **argv)
             fwrite(header, 1, 4, file);
         }
         for (int y = contains_palette ? 1 : 0; y < height ; ++y) {
-            const char* line = XPM_DATA[y + colors + 1];
+            const char* ptr = XPM_DATA[y + colors + 1];
             uint8_t pixel1, pixel2;
 
             for (int x = 0; x < width; x += 2) {
-                pixel1 = find_color(palette, used_colors, line, cpp);
-                line += cpp;
+                pixel1 = find_color(palette, used_colors, ptr, cpp);
+                ptr += cpp;
 
-                pixel2 = find_color(palette, used_colors, line, cpp);
-                line += cpp;
+                pixel2 = find_color(palette, used_colors, ptr, cpp);
+                ptr += cpp;
 
                 switch (mode) {
                 case STDOUT:
@@ -403,7 +416,6 @@ int main(int argc, char **argv)
 
     switch (mode) {
     case HEADER:
-        fprintf(stderr, XPM_LABEL ": %i\n", height - (contains_palette ? 1 : 0));
         printf("#define " XPM_LABEL "_SIZE %u\n", pos / 2);
         break;
 

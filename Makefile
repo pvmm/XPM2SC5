@@ -58,7 +58,7 @@ else
     $(info TAG_NAME set to "$(TAG_NAME)")
 endif
 
-CFLAGS := $(CFLAGS) -I.
+CFLAGS := $(CFLAGS) -I. -g
 BUILD_DIR := ./build
 OUTPUT_FILE := $(BUILDDIR)/$(NAME)
 TARGET := $(BUILDDIR)/$(NAME)
