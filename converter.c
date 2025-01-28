@@ -89,7 +89,6 @@ int8_t find_color(struct palette* palette, int colors, const char* const pos, in
         return palette[cached_color].ci;
     }
 
-    fprintf(stderr, XPM_LABEL ": used colors = %i\n", colors);
     for (int i = (trans_color != NULL ? 0 : 1); i < colors; ++i) {
         if (strncmp(pos, palette[i].s, cpp) == 0) {
             cached_color = i;
@@ -266,9 +265,9 @@ int main(int argc, char **argv)
             register_color(ptr++, c, used_colors++, cpp);
         } else {
             if (is_used_color(s, cpp, colors, width, height) != false) {
-                register_color(ptr++, c, used_colors++, cpp);
                 fprintf(stderr, XPM_LABEL ": string '%.*s' registered as color #%i from table at %i'\n",
                         cpp, s, used_colors, c);
+                register_color(ptr++, c, used_colors++, cpp);
             } else {
                 fprintf(stderr, XPM_LABEL ": string '%.*s' discarded because not used\n", cpp, s);
             }
