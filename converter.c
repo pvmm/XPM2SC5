@@ -274,8 +274,8 @@ int main(int argc, char **argv)
             }
         }
     }
-    fprintf(stderr, XPM_LABEL ": %i colors discarted\n", colors - used_colors);
-    fprintf(stderr, XPM_LABEL ": used colors = %i\n", used_colors);
+    fprintf(stderr, XPM_LABEL ": %i color(s) discarted\n", colors + (trans_color != NULL ? 0 : 1) - used_colors);
+    fprintf(stderr, XPM_LABEL ": used colors = %i\n", used_colors - (trans_color != NULL ? 0 : 1));
     fprintf(stderr, XPM_LABEL ": trans color is %s\n", trans_color == NULL ? "(nil)" : "not (nil)");
 
     if (screen == SCREEN5 && used_colors > MAX_SCREEN5_COLORS) {
