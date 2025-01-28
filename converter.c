@@ -217,6 +217,8 @@ int main(int argc, char **argv)
             }
         }
     }
+    fprintf(stderr, XPM_LABEL ": %i colors discarted\n", colors - used_colors);
+
     if (screen == SCREEN5 && used_colors > MAX_SCREEN5_COLORS) {
         fprintf(stderr, XPM_LABEL ": expects max of 15 used colors (first color is transparent (0))\n");
         exit(-4);
@@ -255,7 +257,7 @@ int main(int argc, char **argv)
         if (data == PALETTE || data == BOTH) {
             printf("static const uint8_t %s_palette[] = {\n", strlower(XPM_LABEL));
 
-            for (int8_t i = 0; i < colors; ++i) {
+            for (int8_t i = 0; i < used_colors; ++i) {
                 // set YS bit on color 0 (transparent)
                 uint8_t ys = (screen == P1 && i == 0) ? 128 : 0;
                 if (palette[i].ci) {
@@ -272,7 +274,7 @@ int main(int argc, char **argv)
 
     else if (mode == RAW) {
         if (data == PALETTE) {
-            for (int8_t i = 0; i < colors; ++i) {
+            for (int8_t i = 0; i < used_colors; ++i) {
                 // set YS bit on color 0 (transparent)
                 uint8_t ys = (screen == P1 && i == 0) ? 128 : 0;
                 char data[3] = { ys | palette[i].r, palette[i].g, palette[i].b, };
@@ -286,10 +288,10 @@ int main(int argc, char **argv)
     else if (mode == BASIC) {
         if (data == PALETTE) {
             printf("10 SCREEN 5\r\n");
-            for (int8_t i = 1; i < colors; ++i) {
+            for (int8_t i = 1; i < used_colors; ++i) {
                 printf("%i COLOR=(%i,%i,%i,%i)\r\n", (i + 1) * 10, i, palette[i].r, palette[i].g, palette[i].b);
             }
-            int index = colors * 10;
+            int index = used_colors * 10;
             printf("%i COPY \"IMAGE.BIN\" TO (0,0),0\r\n", index += 10);
             printf("%i IF INKEY$=\"\" GOTO %i\r\n", index += 10, index);
             printf("%i COPY (0,0)-(254,212),0 TO (1,0),0,XOR\r\n", index += 10);
@@ -324,10 +326,10 @@ int main(int argc, char **argv)
             uint8_t pixel1, pixel2;
 
             for (int x = 0; x < width; x += 2) {
-                pixel1 = find_color(palette, colors, line, cpp);
+                pixel1 = find_color(palette, used_colors, line, cpp);
                 line += cpp;
 
-                pixel2 = find_color(palette, colors, line, cpp);
+                pixel2 = find_color(palette, used_colors, line, cpp);
                 line += cpp;
 
                 switch (mode) {
