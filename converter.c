@@ -16,7 +16,13 @@
 
 
 #define MAX_SCREEN5_COLORS 16
-#define MAX_V9990_COLORS 16
+#define MAX_V9990_COLORS   16
+// error codes
+#define OK                 0
+#define PARAMETER_EXPECTED -1
+#define PARAMETER_TYPE     -2
+#define MODE_MISMATCH      -3
+#define INVALID_VALUE      -4
 
 
 enum DATA_TYPE {
@@ -47,6 +53,9 @@ struct palette {
     uint8_t bb;                 // original blue
     const char* s;              // encoded pixels
 };
+
+// set specific color as transparent (index 0)
+char* trans_color = NULL;
 
 
 void register_color(struct palette* palette, int index, int8_t hw_color, int cpp)
@@ -88,7 +97,7 @@ int8_t find_color(struct palette* palette, int colors, const char* const pos, in
     }
 
     fprintf(stderr, XPM_LABEL ": color index '%.*s' unknown\n", cpp, pos);
-    exit(-5);
+    exit(INVALID_VALUE);
 }
 
 
@@ -130,69 +139,106 @@ int main(int argc, char **argv)
     bool keep_unused = false;           // when true, unused colors are preserved in the palette.
     bool contains_palette = false;      // when true, first line starts with a palette that is removed after processing.
     int change_to_black = -1;           // when greater than -1, color index is encoded as black
+    bool skip_next = false;
 
     for (int i = 1; i < argc; ++i) {
+        if (skip_next) {
+            skip_next = false;
+            continue;
+        }
         // screen type
         if (strcmp(argv[i], "--screen5") == 0) {
             screen = SCREEN5;
+            continue;
         }
         if (strcmp(argv[i], "--v9990") == 0) {
             screen = P1;
+            continue;
         }
         // data
-        if (data == PALETTE && strcmp(argv[i], "--change-to-black") == 0) {
+        if (strcmp(argv[i], "--change-to-black") == 0) {
+            if (data == IMAGE) {
+                fprintf(stderr, XPM_LABEL ": \"--change-to-black\" expects palette output\n");
+                exit(MODE_MISMATCH);
+            }
             if (argc == i + 1) {
                 fprintf(stderr, XPM_LABEL ": expects number after \"--change-to-black\"\n");
-                exit(-1);
+                exit(PARAMETER_EXPECTED);
             }
             sscanf(argv[i + 1], "%d", &change_to_black);
             fprintf(stderr, "change-to-black = %i\n", change_to_black);
             if (change_to_black < 0 || change_to_black > 15) {
                 fprintf(stderr, XPM_LABEL ": expects valid index after \"--convert-to-black\", not \"%s\"\n",
                         argv[i + 1]);
-                exit(-1);
+                exit(PARAMETER_TYPE);
             }
+            skip_next = true;
+            continue;
         }
-        if (data == BOTH && strcmp(argv[i], "--keep-unused") == 0) {
+        if (strcmp(argv[i], "--trans-color") == 0) {
+            if (argc == i + 1) {
+                fprintf(stderr, XPM_LABEL ": expects number after \"--trans-color\"\n");
+                exit(PARAMETER_EXPECTED);
+            }
+            sscanf(argv[i + 1], "%as", &trans_color);
+            if (trans_color[0] == '#') ++trans_color;
+            fprintf(stderr, "trans-color = %s\n", trans_color);
+            skip_next = true;
+            continue;
+        }
+        if (strcmp(argv[i], "--keep-unused") == 0) {
+            if (data == IMAGE) {
+                fprintf(stderr, XPM_LABEL ": \"--keep-unused\" expects palette output\n");
+                exit(MODE_MISMATCH);
+            }
             keep_unused = true;
+            continue;
         }
-        else if (data == BOTH && strcmp(argv[i], "--contains-palette") == 0) {
+        if (strcmp(argv[i], "--contains-palette") == 0) {
             contains_palette = true;
+            continue;
         }
-        else if (data == BOTH && strcmp(argv[i], "--palette") == 0) {
+        if (strcmp(argv[i], "--palette") == 0) {
             data = PALETTE;
+            continue;
         }
-        else if (data == BOTH && strcmp(argv[i], "--image") == 0) {
+        if (strcmp(argv[i], "--image") == 0) {
             data = IMAGE;
+            continue;
         }
         // mode
-        else if (mode == STDOUT && strcmp(argv[i], "--header") == 0) {
+        if (mode == STDOUT && strcmp(argv[i], "--header") == 0) {
             mode = HEADER;
+            continue;
         }
-        else if ((mode == STDOUT || mode == BASIC) && strcmp(argv[i], "--raw") == 0) {
+        if ((mode == STDOUT || mode == BASIC) && strcmp(argv[i], "--raw") == 0) {
             if (mode == STDOUT) mode = RAW;
             if (argc == i + 1) {
                 fprintf(stderr, XPM_LABEL ": expects raw filename after \"--raw\"\n");
-                exit(-1);
+                exit(PARAMETER_EXPECTED);
             }
             file = fopen(argv[i + 1], "wb");
+            skip_next = true;
+            continue;
         }
-        else if (strcmp(argv[i], "--basic") == 0) {
+        if (strcmp(argv[i], "--basic") == 0) {
             mode = BASIC;
-        } else if (strcmp(argv[i], "--") == 0) {
+            continue;
+        }
+        if (strcmp(argv[i], "--") == 0) {
             fprintf(stderr, XPM_LABEL ": unknown option \"%s\"\n", argv[i]);
-            exit(-1);
+            exit(PARAMETER_TYPE);
         }
     }
 
     sscanf(XPM_DATA[0], "%d %d %d %d", &width, &height, &colors, &cpp);
     if (width & 1) {
         fprintf(stderr, XPM_LABEL ": expects even width\n");
-        exit(-2);
+        exit(INVALID_VALUE);
     }
     if (width > 256) {
         fprintf(stderr, XPM_LABEL ": expects maximum width of 256 pixels\n");
-        exit(-3);
+        exit(INVALID_VALUE);
     }
 
     struct palette* palette = alloca(sizeof(struct palette) * colors);
@@ -203,7 +249,7 @@ int main(int argc, char **argv)
     for (int c = 0; c < colors; ++c) {
         char* s = XPM_DATA[c + 1];
         fprintf(stderr, XPM_LABEL ": color [%s] = index %i\n", s, c);
-        if (keep_unused) {
+        if (keep_unused && c < MAX_SCREEN5_COLORS) {
             register_color(palette, c, used_colors, cpp);
             ++used_colors;
         } else {
@@ -221,11 +267,11 @@ int main(int argc, char **argv)
 
     if (screen == SCREEN5 && used_colors > MAX_SCREEN5_COLORS) {
         fprintf(stderr, XPM_LABEL ": expects max of 15 used colors, got %i (first color (0) is transparent)\n", used_colors);
-        exit(-4);
+        exit(INVALID_VALUE);
     }
     if (screen = P1 && used_colors > MAX_V9990_COLORS) {
         fprintf(stderr, XPM_LABEL ": expects max of 16 used colors\n");
-        exit(-4);
+        exit(INVALID_VALUE);
     }
 
     // converting defined color to black
@@ -281,7 +327,7 @@ int main(int argc, char **argv)
                 fwrite(data, 1, 3, file);
             }
             fclose(file);
-            exit(0);
+            exit(OK);
         }
     }
 
@@ -296,7 +342,7 @@ int main(int argc, char **argv)
             printf("%i IF INKEY$=\"\" GOTO %i\r\n", index += 10, index);
             printf("%i COPY (0,0)-(254,212),0 TO (1,0),0,XOR\r\n", index += 10);
             printf("%i IF INKEY$=\"\" GOTO %i\r\n", index += 10, index);
-            exit(0);
+            exit(OK);
         }
     }
 
