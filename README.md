@@ -18,8 +18,8 @@ respectively.
 ## extra parameters
 The following command line parameters are recognised:
 ```
---screen5           Expects a SCREEN5 compatible image (256 width max. with 15 colors).
---v9990             Expects P1 mode compatible image (V9990 graphics card).
+--screen5           Outputs a SCREEN5 compatible image (256 width max. with 15 colors).
+--v9990             Outputs a P1 mode compatible image (V9990 graphics card).
 --keep-unused       Unused palette colors are still converted to output file.
 --contains-palette  Get palette colors and order from first disposable line of the image.
 --palette           Outputs palette too.
