@@ -127,7 +127,7 @@ int main(int argc, char **argv)
     int used_colors;
     FILE *file = NULL;
     int cpp;
-    bool keep_unused = true;            // when true, unused colors are preserved in the palette.
+    bool keep_unused = false;           // when true, unused colors are preserved in the palette.
     bool contains_palette = false;      // when true, first line starts with a palette that is removed after processing.
     int change_to_black = -1;           // when > than -1, color index is encoded as black
 
@@ -153,8 +153,8 @@ int main(int argc, char **argv)
                 exit(-1);
             }
         }
-        if (data == BOTH && strcmp(argv[i], "--discard-unused") == 0) {
-            keep_unused = false;
+        if (data == BOTH && strcmp(argv[i], "--keep-unused") == 0) {
+            keep_unused = true;
         }
         else if (data == BOTH && strcmp(argv[i], "--contains-palette") == 0) {
             contains_palette = true;
@@ -220,7 +220,7 @@ int main(int argc, char **argv)
     fprintf(stderr, XPM_LABEL ": %i colors discarted\n", colors - used_colors);
 
     if (screen == SCREEN5 && used_colors > MAX_SCREEN5_COLORS) {
-        fprintf(stderr, XPM_LABEL ": expects max of 15 used colors (first color is transparent (0))\n");
+        fprintf(stderr, XPM_LABEL ": expects max of 15 used colors, got %i (first color (0) is transparent)\n", used_colors);
         exit(-4);
     }
     if (screen = P1 && used_colors > MAX_V9990_COLORS) {
