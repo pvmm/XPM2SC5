@@ -73,14 +73,12 @@ $(TARGET_h): converter.c $(INPUT_FILE) $(BUILD_DIR)
 	$(info BUILD_DIR=$(BUILD_DIR))
 	$(CC) $(CFLAGS) $(XPM_INCLUDE) -DXPM_DATA="$(FIELD)" -DXPM_LABEL="\"$(TAG_NAME)\"" -o $(BUILD_DIR)$(basename $(OUTPUT_FILE)) $<
 	$(BUILD_DIR)$(basename $(OUTPUT_FILE)) $(INPUT_FILE) > $(BUILD_DIR)$(OUTPUT_FILE).h
-	rm $(BUILD_DIR)$(basename $(OUTPUT_FILE))
 
 .DELETE_ON_ERROR:
 $(TARGET_c): converter.c $(INPUT_FILE) $(BUILD_DIR)
 	$(CC) $(CFLAGS) $(XPM_INCLUDE) -DXPM_DATA="$(FIELD)" -DXPM_LABEL="\"$(TAG_NAME)\"" -o $(BUILD_DIR)$(basename $(OUTPUT_FILE)) $<
 	$(BUILD_DIR)$(basename $(OUTPUT_FILE)) > $(BUILD_DIR)$(OUTPUT_FILE).c
 	$(BUILD_DIR)$(basename $(OUTPUT_FILE)) --header > $(BUILD_DIR)$(OUTPUT_FILE).h
-	rm $(BUILD_DIR)$(basename $(OUTPUT_FILE))
 
 .DELETE_ON_ERROR:
 $(TARGET_raw): converter.c $(INPUT_FILE) $(BUILD_DIR)
@@ -88,7 +86,6 @@ $(TARGET_raw): converter.c $(INPUT_FILE) $(BUILD_DIR)
 	$(CC) $(CFLAGS) $(XPM_INCLUDE) -DXPM_DATA="$(FIELD)" -DXPM_LABEL="\"$(TAG_NAME)\"" -o $(BUILD_DIR)$(basename $(OUTPUT_FILE)) $<
 	$(BUILD_DIR)$(basename $(OUTPUT_FILE)) --contains-palette --raw $(BUILD_DIR)$(OUTPUT_FILE).raw
 	$(BUILD_DIR)$(basename $(OUTPUT_FILE)) --contains-palette --header > $(BUILD_DIR)$(OUTPUT_FILE).h
-	rm $(BUILD_DIR)$(basename $(OUTPUT_FILE))
 
 .DELETE_ON_ERROR:
 $(TARGET_bin): converter.c $(INPUT_FILE) $(BUILD_DIR)
@@ -96,7 +93,6 @@ $(TARGET_bin): converter.c $(INPUT_FILE) $(BUILD_DIR)
 	$(CC) $(CFLAGS) $(XPM_INCLUDE) -DXPM_DATA="$(FIELD)" -DXPM_LABEL="\"$(TAG_NAME)\"" -o $(BUILD_DIR)$(basename $(OUTPUT_FILE)) $<
 	$(BUILD_DIR)$(basename $(OUTPUT_FILE)) --contains-palette --basic --raw $(BUILD_DIR)$(OUTPUT_FILE).bin
 	$(BUILD_DIR)$(basename $(OUTPUT_FILE)) --contains-palette --basic --palette > $(BUILD_DIR)$(OUTPUT_FILE).bas
-	rm $(BUILD_DIR)$(basename $(OUTPUT_FILE))
 
 clean:
 	rm -rf $(BUILD_DIR)
