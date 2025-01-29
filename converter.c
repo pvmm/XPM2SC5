@@ -90,7 +90,7 @@ int8_t find_color(struct palette* palette, int colors, const char* const pos, in
         return palette[cached_color].ci;
     }
 
-    for (int i = (trans_color != NULL ? 0 : 1); i < colors; ++i) {
+    for (int i = trans_color != NULL ? 0 : 1; i < colors + 1; ++i) {
         if (strncmp(pos, palette[i].s, cpp) == 0) {
             cached_color = i;
             return palette[cached_color].ci;
@@ -250,7 +250,7 @@ int main(int argc, char **argv)
     memset(palette, 0, sizeof(struct palette) * colors);
     struct palette* ptr = &palette[1];
     int replace_count = 0;
-    used_colors = 1;
+    used_colors = 0;
 
     /* find colors first */
     for (int c = 1; c < colors + 1; ++c) {
@@ -266,19 +266,21 @@ int main(int argc, char **argv)
             replace_count++;
         }
         else if (keep_unused && used_colors < MAX_SCREEN5_COLORS) {
-            register_color(ptr++, c, used_colors++, cpp);
+            register_color(ptr++, c, ++used_colors, cpp);
+            fprintf(stderr, XPM_LABEL ": string '%.*s' registered as color #%i from table at %i'\n",
+                    cpp, s, used_colors, c);
         } else {
             if (is_used_color(s, cpp, colors, width, height) != false) {
+                register_color(ptr++, c, ++used_colors, cpp);
                 fprintf(stderr, XPM_LABEL ": string '%.*s' registered as color #%i from table at %i'\n",
                         cpp, s, used_colors, c);
-                register_color(ptr++, c, used_colors++, cpp);
             } else {
                 fprintf(stderr, XPM_LABEL ": string '%.*s' discarded because not used\n", cpp, s);
             }
         }
     }
-    fprintf(stderr, XPM_LABEL ": %i color(s) discarted\n", colors + (trans_color != NULL ? 0 : 1) - used_colors);
-    fprintf(stderr, XPM_LABEL ": used colors = %i\n", used_colors - (trans_color != NULL ? 0 : 1));
+    fprintf(stderr, XPM_LABEL ": %i color(s) discarted\n", colors - used_colors);
+    fprintf(stderr, XPM_LABEL ": used colors = %i\n", used_colors);
     fprintf(stderr, XPM_LABEL ": transparent color is %s\n", trans_color == NULL ? "(nil)" : "not (nil)");
 
     if (screen == SCREEN5 && used_colors > MAX_SCREEN5_COLORS) {
@@ -317,15 +319,25 @@ int main(int argc, char **argv)
 
     else if (mode == STDOUT) {
         if (data == PALETTE || data == BOTH) {
-            printf("static const uint8_t %s_palette[] = {\n", strlower(XPM_LABEL));
+            printf("#include <stdint.h>\n\n");
+            printf("const uint8_t %s_palette[] = {\n", strlower(XPM_LABEL));
 
-            for (int8_t i = (trans_color == NULL ? 1 : 0); i < used_colors; ++i) {
-                // set YS bit on color 0 (transparent)
-                uint8_t ys = (screen == P1 && i == 0) ? 128 : 0;
-                printf("\t%2i, %u,%u,%u, /* 0x%02X, 0x%02X, 0x%02X */\n",
-                       palette[i].ci,
-                       ys | palette[i].r, palette[i].g, palette[i].b,
-                       palette[i].rr, palette[i].gg, palette[i].bb);
+            if (screen == P1) {
+                for (int8_t i = 0; i < used_colors; i++) {
+                    // set YS bit on color 0 (transparent)
+                    uint8_t ys = (screen == P1 && i == 0) ? 128 : 0;
+                    printf("\t%2i, %u,%u,%u, /* 0x%02X, 0x%02X, 0x%02X */\n",
+                           palette[i + 1].ci,
+                           ys | palette[i + 1].r, palette[i + 1].g, palette[i + 1].b,
+                           palette[i + 1].rr, palette[i + 1].gg, palette[i + 1].bb);
+                }
+            } else {
+                for (int8_t i = 0; i < used_colors; i++) {
+                    // set YS bit on color 0 (transparent)
+                    printf("\t0x%02X,0x%02X, /* 0x%02X, 0x%02X, 0x%02X */\n",
+                           palette[i + 1].r * 16 + palette[i + 1].b, palette[i + 1].g,
+                           palette[i + 1].rr, palette[i + 1].gg, palette[i + 1].bb);
+                }
             }
 
             printf("};\n\n");
@@ -367,7 +379,7 @@ int main(int argc, char **argv)
         break;
 
     case STDOUT:
-        printf("static const uint8_t %s_data[] = {\n\t", strlower(XPM_LABEL));
+        printf("const uint8_t %s_data[] = {\n\t", strlower(XPM_LABEL));
         break;
 
     default:

@@ -7,13 +7,6 @@ $(info INPUT_FILE set to "$(INPUT_FILE)")
 NAME := $(basename $(TMP))
 $(info NAME set to "$(NAME)")
 
-# trigger rule if output file is .h file
-ifeq ($(MAKECMDGOALS),$(basename $(MAKECMDGOALS)).h)
-    $(info MAKECMDGOALS = $(MAKECMDGOALS))
-    $(info BASENAME = $(basename $(MAKECMDGOALS)))
-    TARGET_h := $(basename $(MAKECMDGOALS)).h
-    $(info TARGET is "$(TARGET_h)")
-endif
 # trigger rule if output file is .c file
 ifeq ($(MAKECMDGOALS),$(basename $(MAKECMDGOALS)).c)
     $(info MAKECMDGOALS = $(MAKECMDGOALS))
@@ -58,8 +51,9 @@ else
     $(info TAG_NAME set to "$(TAG_NAME)")
 endif
 
+BUILD_DIR ?= ./build
+$(info BUILD_DIR is set to "$(BUILD_DIR)")
 CFLAGS := $(CFLAGS) -I. -g
-BUILD_DIR := ./build
 OUTPUT_FILE := $(BUILDDIR)/$(NAME)
 TARGET := $(BUILDDIR)/$(NAME)
 
@@ -69,30 +63,23 @@ $(BUILD_DIR):
 	mkdir -p $(BUILD_DIR)
 
 .DELETE_ON_ERROR:
-$(TARGET_h): converter.c $(INPUT_FILE) $(BUILD_DIR)
-	$(info BUILD_DIR=$(BUILD_DIR))
-	$(CC) $(CFLAGS) $(XPM_INCLUDE) -DXPM_DATA="$(FIELD)" -DXPM_LABEL="\"$(TAG_NAME)\"" -o $(BUILD_DIR)$(basename $(OUTPUT_FILE)) $<
-	$(BUILD_DIR)$(basename $(OUTPUT_FILE)) $(INPUT_FILE) > $(BUILD_DIR)$(OUTPUT_FILE).h
-
-.DELETE_ON_ERROR:
 $(TARGET_c): converter.c $(INPUT_FILE) $(BUILD_DIR)
 	$(CC) $(CFLAGS) $(XPM_INCLUDE) -DXPM_DATA="$(FIELD)" -DXPM_LABEL="\"$(TAG_NAME)\"" -o $(BUILD_DIR)$(basename $(OUTPUT_FILE)) $<
-	$(BUILD_DIR)$(basename $(OUTPUT_FILE)) > $(BUILD_DIR)$(OUTPUT_FILE).c
-	$(BUILD_DIR)$(basename $(OUTPUT_FILE)) --header > $(BUILD_DIR)$(OUTPUT_FILE).h
+#$(BUILD_DIR)$(basename $(OUTPUT_FILE)) > $(BUILD_DIR)$(OUTPUT_FILE).c
+#$(BUILD_DIR)$(basename $(OUTPUT_FILE)) --header > $(BUILD_DIR)$(OUTPUT_FILE).h
 
 .DELETE_ON_ERROR:
 $(TARGET_raw): converter.c $(INPUT_FILE) $(BUILD_DIR)
-	$(info BUILD_DIR=$(BUILD_DIR))
 	$(CC) $(CFLAGS) $(XPM_INCLUDE) -DXPM_DATA="$(FIELD)" -DXPM_LABEL="\"$(TAG_NAME)\"" -o $(BUILD_DIR)$(basename $(OUTPUT_FILE)) $<
-	$(BUILD_DIR)$(basename $(OUTPUT_FILE)) --contains-palette --raw $(BUILD_DIR)$(OUTPUT_FILE).raw
-	$(BUILD_DIR)$(basename $(OUTPUT_FILE)) --contains-palette --header > $(BUILD_DIR)$(OUTPUT_FILE).h
+#$(BUILD_DIR)$(basename $(OUTPUT_FILE)) --contains-palette --raw $(BUILD_DIR)$(OUTPUT_FILE).raw
+#$(BUILD_DIR)$(basename $(OUTPUT_FILE)) --contains-palette --header > $(BUILD_DIR)$(OUTPUT_FILE).h
 
 .DELETE_ON_ERROR:
 $(TARGET_bin): converter.c $(INPUT_FILE) $(BUILD_DIR)
 	$(info BUILD_DIR=$(BUILD_DIR))
 	$(CC) $(CFLAGS) $(XPM_INCLUDE) -DXPM_DATA="$(FIELD)" -DXPM_LABEL="\"$(TAG_NAME)\"" -o $(BUILD_DIR)$(basename $(OUTPUT_FILE)) $<
-	$(BUILD_DIR)$(basename $(OUTPUT_FILE)) --contains-palette --basic --raw $(BUILD_DIR)$(OUTPUT_FILE).bin
-	$(BUILD_DIR)$(basename $(OUTPUT_FILE)) --contains-palette --basic --palette > $(BUILD_DIR)$(OUTPUT_FILE).bas
+#$(BUILD_DIR)$(basename $(OUTPUT_FILE)) --contains-palette --basic --raw $(BUILD_DIR)$(OUTPUT_FILE).bin
+#$(BUILD_DIR)$(basename $(OUTPUT_FILE)) --contains-palette --basic --palette > $(BUILD_DIR)$(OUTPUT_FILE).bas
 
 clean:
 	rm -rf $(BUILD_DIR)
