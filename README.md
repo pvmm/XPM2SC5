@@ -1,6 +1,6 @@
 # XPM2SC5
 
-Converts XPM file into SCREEN5/V9990 (p1 mode) without any additional library other than libc. This project is meant to be used inside another, by a parent Makefile calling this Makefile inside a subdirectory. If the image is called `image1.xpm`, run the code like this:
+Converts XPM file into SCREEN5/V9990 (p1 mode) without any additional library other than libc. This is done by creating an executable that `#include`s the XPM file as source code, since XPM files are C-compatible files. This project is meant to be used inside another, by a parent Makefile calling this Makefile inside a subdirectory. If the image is called `image1.xpm`, run the code like this:
 ```
 make images/image1.raw
 build/image1 --raw build/image1.raw
