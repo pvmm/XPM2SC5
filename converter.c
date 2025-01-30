@@ -55,7 +55,7 @@ struct palette {
 };
 
 // set specific color as transparent (index 0)
-char  trans_color_s[8] = { 0 };
+char  trans_color_s[10] = { '#', 0 };
 char* trans_color = NULL;
 
 
@@ -181,12 +181,13 @@ int main(int argc, char **argv)
                 fprintf(stderr, XPM_LABEL ": expects hex color  after \"--trans-color\"\n");
                 exit(PARAMETER_EXPECTED);
             }
-            sscanf(argv[i + 1], "%7s", &trans_color_s);
-            trans_color = trans_color_s;
-            for (unsigned char* s = trans_color; *s != 0; ++s) {
+            sscanf(argv[i + 1], "%7s", &trans_color_s[1]);
+            // convert to uppercase
+            for (unsigned char* s = trans_color_s; *s != 0; ++s) {
                 *s = toupper(*s);
             }
-            if (trans_color[0] == '#') ++trans_color;
+            if (trans_color_s[1] == '#') trans_color = trans_color_s + 1;
+            else trans_color = trans_color_s;
             fprintf(stderr, XPM_LABEL ": transparent color = %s\n", trans_color);
             skip_next = true;
             continue;
@@ -255,13 +256,13 @@ int main(int argc, char **argv)
     /* find colors first */
     for (int c = 1; c < colors + 1; ++c) {
         char* s = XPM_DATA[c];
-        char* rgb = s + cpp + 4;
+        char* rgb = s + strlen(s) - 7; // #<RRGGBB> at the end of the string
         if (trans_color != NULL && strcmp(rgb, trans_color) == 0) {
             if (!replace_count) {
                 fprintf(stderr, XPM_LABEL ": transparent color #%i (%s) found\n", c, rgb);
                 register_color(&palette[0], c, 0, cpp);
             } else {
-                fprintf(stderr, XPM_LABEL ": WARNING: trans_color repeated at %i\n", c);
+                fprintf(stderr, XPM_LABEL ": WARNING: transparent color repeated at %i position, ignored\n", c);
             }
             replace_count++;
         }
@@ -278,6 +279,9 @@ int main(int argc, char **argv)
                 fprintf(stderr, XPM_LABEL ": string '%.*s' discarded because not used\n", cpp, s);
             }
         }
+    }
+    if (replace_count == 0) {
+        fprintf(stderr, XPM_LABEL ": WARNING: transparent color #%s not found in palette\n", trans_color);
     }
     fprintf(stderr, XPM_LABEL ": %i color(s) discarted\n", colors - used_colors);
     fprintf(stderr, XPM_LABEL ": used colors = %i\n", used_colors);
