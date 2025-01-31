@@ -54,9 +54,13 @@ struct palette {
     const char* s;              // encoded pixels
 };
 
+struct palette* palette_ptr;
+
 // set specific color as transparent (index 0)
 char  trans_color_s[10] = { '#', 0 };
 char* trans_color = NULL;
+bool  trans_color_found = false;
+bool  has_trans_color = false;
 
 
 void register_color(struct palette* palette, int file_index, int8_t hw_index, int cpp)
@@ -79,6 +83,9 @@ void register_color(struct palette* palette, int file_index, int8_t hw_index, in
     palette->rr = rr;
     palette->gg = gg;
     palette->bb = bb;
+
+    fprintf(stderr, XPM_LABEL ": string '%.*s' registered as color #%i from table at %i'\n",
+            cpp, s, hw_index, file_index);
 }
 
 
@@ -90,7 +97,7 @@ int8_t find_color(struct palette* palette, int colors, const char* const pos, in
         return palette[cached_color].ci;
     }
 
-    for (int i = trans_color != NULL ? 0 : 1; i < colors + 1; ++i) {
+    for (int i = has_trans_color ? 0 : 1; i < colors + 1; ++i) {
         if (strncmp(pos, palette[i].s, cpp) == 0) {
             cached_color = i;
             return palette[cached_color].ci;
@@ -247,11 +254,13 @@ int main(int argc, char **argv)
         exit(INVALID_VALUE);
     }
 
-    struct palette* palette = alloca(sizeof(struct palette) * colors);
-    memset(palette, 0, sizeof(struct palette) * colors);
-    struct palette* ptr = &palette[1];
+    struct palette* palette = alloca(sizeof(struct palette) * (colors + 1));
+    memset(palette, 0, sizeof(struct palette) * (colors + 1));
+    // reserve first element for transparent color
+    palette_ptr = &palette[1];
+    struct palette* ptr = palette_ptr;
     int replace_count = 0;
-    used_colors = 0;
+    used_colors = 1;
 
     /* find colors first */
     for (int c = 1; c < colors + 1; ++c) {
@@ -261,34 +270,34 @@ int main(int argc, char **argv)
             if (!replace_count) {
                 fprintf(stderr, XPM_LABEL ": transparent color #%i (%s) found\n", c, rgb);
                 register_color(&palette[0], c, 0, cpp);
+                trans_color_found = true;
             } else {
                 fprintf(stderr, XPM_LABEL ": WARNING: transparent color repeated at %i position, ignored\n", c);
             }
             replace_count++;
         }
         else if (keep_unused && used_colors < MAX_SCREEN5_COLORS) {
-            register_color(ptr++, c, ++used_colors, cpp);
-            fprintf(stderr, XPM_LABEL ": string '%.*s' registered as color #%i from table at %i'\n",
-                    cpp, s, used_colors, c);
+            register_color(ptr++, c, used_colors++, cpp);
         } else {
             if (is_used_color(s, cpp, colors, width, height) != false) {
-                register_color(ptr++, c, ++used_colors, cpp);
-                fprintf(stderr, XPM_LABEL ": string '%.*s' registered as color #%i from table at %i'\n",
-                        cpp, s, used_colors, c);
+                register_color(ptr++, c, used_colors++, cpp);
             } else {
                 fprintf(stderr, XPM_LABEL ": string '%.*s' discarded because not used\n", cpp, s);
             }
         }
     }
-    if (replace_count == 0) {
+    has_trans_color = trans_color != NULL && trans_color_found;
+    used_colors -= has_trans_color ? 0 : 1;
+
+    if (trans_color != NULL && !trans_color_found) {
         fprintf(stderr, XPM_LABEL ": WARNING: transparent color #%s not found in palette\n", trans_color);
     }
     fprintf(stderr, XPM_LABEL ": %i color(s) discarted\n", colors - used_colors);
-    fprintf(stderr, XPM_LABEL ": used colors = %i\n", used_colors);
-    fprintf(stderr, XPM_LABEL ": transparent color is %s\n", trans_color == NULL ? "(nil)" : "not (nil)");
+    fprintf(stderr, XPM_LABEL ": number of colors = %i\n", used_colors);
 
     if (screen == SCREEN5 && used_colors > MAX_SCREEN5_COLORS) {
-        fprintf(stderr, XPM_LABEL ": expects max of 15 used colors, got %i (first color (0) is transparent)\n", used_colors);
+        fprintf(stderr, XPM_LABEL ": expects max of 15 used colors, got %i (first color (0) is transparent)\n",
+                used_colors);
         exit(INVALID_VALUE);
     }
     if (screen = P1 && used_colors > MAX_V9990_COLORS) {
@@ -326,24 +335,12 @@ int main(int argc, char **argv)
             printf("#include <stdint.h>\n\n");
             printf("const uint8_t %s_palette[] = {\n", strlower(XPM_LABEL));
 
-            if (screen == P1) {
-                for (int8_t i = 0; i < used_colors; i++) {
-                    // set YS bit on color 0 (transparent)
-                    uint8_t ys = (screen == P1 && i == 0) ? 128 : 0;
-                    printf("\t%2i, %u,%u,%u, /* 0x%02X, 0x%02X, 0x%02X */\n",
-                           palette[i + 1].ci,
-                           ys | palette[i + 1].r, palette[i + 1].g, palette[i + 1].b,
-                           palette[i + 1].rr, palette[i + 1].gg, palette[i + 1].bb);
-                }
-            } else {
-                for (int8_t i = 0; i < used_colors; i++) {
-                    // set YS bit on color 0 (transparent)
-                    printf("\t0x%02X,0x%02X, /* 0x%02X, 0x%02X, 0x%02X */\n",
-                           palette[i + 1].r * 16 + palette[i + 1].b, palette[i + 1].g,
-                           palette[i + 1].rr, palette[i + 1].gg, palette[i + 1].bb);
-                }
+            for (int8_t i = 0; i < used_colors; i++) {
+                // set YS bit on color 0 (transparent)
+                printf("\t0x%02X,0x%02X, /* %d: 0x%02X, 0x%02X, 0x%02X */\n",
+                       palette_ptr[i].r * 16 + palette_ptr[i].b, palette_ptr[i].g,
+                       palette_ptr[i].ci, palette_ptr[i].rr, palette_ptr[i].gg, palette_ptr[i].bb);
             }
-
             printf("};\n\n");
         }
     }
@@ -353,7 +350,7 @@ int main(int argc, char **argv)
             for (int8_t i = 0; i < used_colors; ++i) {
                 // set YS bit on color 0 (transparent)
                 uint8_t ys = (screen == P1 && i == 0) ? 128 : 0;
-                char data[3] = { ys | palette[i].r, palette[i].g, palette[i].b, };
+                char data[3] = { ys | palette_ptr[i].r, palette_ptr[i].g, palette_ptr[i].b, };
                 fwrite(data, 1, 3, file);
             }
             fclose(file);
@@ -364,7 +361,7 @@ int main(int argc, char **argv)
     else if (mode == BASIC) {
         if (data == PALETTE) {
             printf("10 SCREEN 5\r\n");
-            for (int8_t i = 1; i < used_colors; ++i) {
+            for (int8_t i = 0; i < used_colors; ++i) {
                 printf("%i COLOR=(%i,%i,%i,%i)\r\n", (i + 1) * 10, i, palette[i].r, palette[i].g, palette[i].b);
             }
             int index = used_colors * 10;
