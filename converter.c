@@ -376,11 +376,11 @@ int main(int argc, char **argv)
 
     switch (mode) {
     case HEADER:
-        printf("extern const uint8_t %s_data[];\n\n", strlower(XPM_LABEL));
+        printf("extern const uint8_t %s_pattern[];\n\n", strlower(XPM_LABEL));
         break;
 
     case STDOUT:
-        printf("const uint8_t %s_data[] = {\n\t", strlower(XPM_LABEL));
+        printf("const uint8_t %s_pattern[] = {\n\t", strlower(XPM_LABEL));
         break;
 
     default:
