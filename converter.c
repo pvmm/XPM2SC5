@@ -332,20 +332,21 @@ int main(int argc, char **argv)
         }
 
         if (data == PALETTE || data == BOTH) {
-            printf("extern const uint8_t %s_palette[%i];\n\n", strlower(XPM_LABEL), used_colors);
+            printf("extern const uint8_t %s_palette[%i];\n\n", strlower(XPM_LABEL), used_colors * 2);
         }
     }
 
     else if (mode == STDOUT) {
         if (data == PALETTE || data == BOTH) {
             printf("#include <stdint.h>\n\n");
-            printf("const uint8_t %s_palette[%i] = {\n", strlower(XPM_LABEL), used_colors);
+            printf("const uint8_t %s_palette[%i] = {\n", strlower(XPM_LABEL), used_colors * 2);
 
             for (int8_t i = 0; i < used_colors; i++) {
                 // set YS bit on color 0 (transparent)
-                printf("\t0x%02X,0x%02X, /* %d: 0x%02X, 0x%02X, 0x%02X */\n",
+                printf("\t0x%02X,0x%02X, /* %02d: 0x%02X, 0x%02X, 0x%02X %s*/\n",
                        palette_ptr[i].r * 16 + palette_ptr[i].b, palette_ptr[i].g,
-                       palette_ptr[i].ci, palette_ptr[i].rr, palette_ptr[i].gg, palette_ptr[i].bb);
+                       palette_ptr[i].ci, palette_ptr[i].rr, palette_ptr[i].gg, palette_ptr[i].bb,
+                       palette_ptr[i].ignored ? "(ignored) " : "");
             }
             printf("};\n\n");
         }
@@ -382,11 +383,11 @@ int main(int argc, char **argv)
 
     switch (mode) {
     case HEADER:
-        printf("extern const uint8_t %s_pattern[];\n\n", strlower(XPM_LABEL));
+        printf("extern const uint8_t %s_pattern[%u];\n\n", strlower(XPM_LABEL), width / 2 * height);
         break;
 
     case STDOUT:
-        printf("const uint8_t %s_pattern[] = {\n\t", strlower(XPM_LABEL));
+        printf("const uint8_t %s_pattern[%u] = {\n\t", strlower(XPM_LABEL), width / 2 * height);
         break;
 
     default:
