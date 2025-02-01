@@ -44,7 +44,8 @@ enum SCREEN_TYPE {
 } screen = SCREEN5;
 
 struct palette {
-    int8_t ci;                  // color index
+    bool ignored;
+    int8_t ci;                  // Color Index
     uint8_t r;                  // 5bit red (P1) / 3bit red (SC5)
     uint8_t rr;                 // original red
     uint8_t g;                  // 5bit green (P1) / 3bit green (SC5)
@@ -63,7 +64,7 @@ bool  trans_color_found = false;
 bool  has_trans_color = false;
 
 
-void register_color(struct palette* palette, int file_index, int8_t hw_index, int cpp)
+void register_color(struct palette* palette, int file_index, int8_t hw_index, int cpp, bool ignored)
 {
     unsigned int rr, gg, bb;
     const char* s = XPM_DATA[file_index];
@@ -74,6 +75,7 @@ void register_color(struct palette* palette, int file_index, int8_t hw_index, in
     gg = gg & 0xff;
     bb = bb & 0xff;
 
+    palette->ignored = ignored;
     palette->ci = hw_index;
     palette->r = (uint8_t) ((double) rr) * component / 0xff;
     palette->g = (uint8_t) ((double) gg) * component / 0xff;
@@ -84,8 +86,9 @@ void register_color(struct palette* palette, int file_index, int8_t hw_index, in
     palette->gg = gg;
     palette->bb = bb;
 
-    fprintf(stderr, XPM_LABEL ": string '%.*s' registered as color #%i from table at %i'\n",
-            cpp, s, hw_index, file_index);
+    fprintf(stderr, XPM_LABEL ": string '%.*s' registered as color #%i from table at %i%s.\n",
+            cpp, s, hw_index, file_index,
+            ignored ? " (ignored)" : "");
 }
 
 
@@ -97,7 +100,9 @@ int8_t find_color(struct palette* palette, int colors, const char* const pos, in
         return palette[cached_color].ci;
     }
 
-    for (int i = has_trans_color ? 0 : 1; i < colors + 1; ++i) {
+    for (int i = has_trans_color ? 0 : 1; i < has_trans_color ? colors + 1 : colors; ++i) {
+        // skip ignored color
+        if (palette[i].ignored) continue;
         if (strncmp(pos, palette[i].s, cpp) == 0) {
             cached_color = i;
             return palette[cached_color].ci;
@@ -263,36 +268,37 @@ int main(int argc, char **argv)
     used_colors = 1;
 
     /* find colors first */
-    for (int c = 1; c < colors + 1; ++c) {
-        char* s = XPM_DATA[c];
+    for (int file_index = 1; file_index < colors + 1; ++file_index) {
+        char* s = XPM_DATA[file_index];
         char* rgb = s + strlen(s) - 7; // #<RRGGBB> at the end of the string
+        // process transparent colour
         if (trans_color != NULL && strcmp(rgb, trans_color) == 0) {
             if (!replace_count) {
-                fprintf(stderr, XPM_LABEL ": transparent color #%i (%s) found\n", c, rgb);
-                register_color(&palette[0], c, 0, cpp);
+                fprintf(stderr, XPM_LABEL ": transparent color #%i (%s) found\n", file_index, rgb);
+                register_color(&palette[0], file_index, 0, cpp, false);
                 trans_color_found = true;
             } else {
-                fprintf(stderr, XPM_LABEL ": WARNING: transparent color repeated at %i position, ignored\n", c);
+                fprintf(stderr, XPM_LABEL ": WARNING: transparent color repeated at position %i will be ignored.\n", file_index);
+                if (keep_unused) register_color(ptr++, file_index, used_colors++, cpp, true);
             }
             replace_count++;
         }
+        // process normal used colour
+        else if (is_used_color(s, cpp, colors, width, height)) {
+            register_color(ptr++, file_index, used_colors++, cpp, false);
+        }
+        // process normal unused colour
         else if (keep_unused && used_colors < MAX_SCREEN5_COLORS) {
-            register_color(ptr++, c, used_colors++, cpp);
-        } else {
-            if (is_used_color(s, cpp, colors, width, height) != false) {
-                register_color(ptr++, c, used_colors++, cpp);
-            } else {
-                fprintf(stderr, XPM_LABEL ": string '%.*s' discarded because not used\n", cpp, s);
-            }
+            register_color(ptr++, file_index, used_colors++, cpp, true);
         }
     }
     has_trans_color = trans_color != NULL && trans_color_found;
-    used_colors -= has_trans_color ? 0 : 1;
+    if (!keep_unused) fprintf(stderr, XPM_LABEL ": %i color(s) discarted\n", colors - used_colors);
+    used_colors -= has_trans_color ? 1 : 0;
 
     if (trans_color != NULL && !trans_color_found) {
         fprintf(stderr, XPM_LABEL ": WARNING: transparent color #%s not found in palette\n", trans_color);
     }
-    fprintf(stderr, XPM_LABEL ": %i color(s) discarted\n", colors - used_colors);
     fprintf(stderr, XPM_LABEL ": number of colors = %i\n", used_colors);
 
     if (screen == SCREEN5 && used_colors > MAX_SCREEN5_COLORS) {
@@ -326,14 +332,14 @@ int main(int argc, char **argv)
         }
 
         if (data == PALETTE || data == BOTH) {
-            printf("extern const uint8_t %s_palette[];\n\n", strlower(XPM_LABEL));
+            printf("extern const uint8_t %s_palette[%i];\n\n", strlower(XPM_LABEL), used_colors);
         }
     }
 
     else if (mode == STDOUT) {
         if (data == PALETTE || data == BOTH) {
             printf("#include <stdint.h>\n\n");
-            printf("const uint8_t %s_palette[] = {\n", strlower(XPM_LABEL));
+            printf("const uint8_t %s_palette[%i] = {\n", strlower(XPM_LABEL), used_colors);
 
             for (int8_t i = 0; i < used_colors; i++) {
                 // set YS bit on color 0 (transparent)
