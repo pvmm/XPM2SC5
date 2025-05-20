@@ -88,7 +88,7 @@ void register_color(struct palette* palette, int file_index, int8_t hw_index, in
 
     fprintf(stderr, XPM_LABEL ": string '%.*s' registered as color #%i from table at %i%s.\n",
             cpp, s, hw_index, file_index,
-            ignored ? " (ignored)" : "");
+            ignored ? " (not used)" : "");
 }
 
 
@@ -346,7 +346,7 @@ int main(int argc, char **argv)
                 printf("\t0x%02X,0x%02X, /* %02d: 0x%02X, 0x%02X, 0x%02X %s*/\n",
                        palette_ptr[i].r * 16 + palette_ptr[i].b, palette_ptr[i].g,
                        palette_ptr[i].ci, palette_ptr[i].rr, palette_ptr[i].gg, palette_ptr[i].bb,
-                       palette_ptr[i].ignored ? "(ignored) " : "");
+                       palette_ptr[i].ignored ? "(not used) " : "");
             }
             printf("};\n\n");
         }
