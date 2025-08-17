@@ -250,6 +250,7 @@ char* strupper(char* const s)
 void print_help()
 {
     fprintf(stdout, "\
+--help                   Displays this message.
 --screen5                Outputs a SCREEN5 compatible image (256 width max. with 15 colors).\n\
 --v9990                  Outputs a P1 mode compatible image (V9990 graphics card).\n\
 --keep-unused            Unused palette colors are still converted to output file.\n\
