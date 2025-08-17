@@ -7,11 +7,17 @@ build/image1 --image --raw --file image1.raw
 build/image1 --palette --raw --file image1.pal
 build/image1 --both --header > image1.h
 ```
-to create a raw VRAM file called `image2.raw`. You may also create `.c` and `.h` files with the following commands:
+To create a raw VRAM file called `image2.raw`. You may also create `.c` and `.h` files with the following commands:
 ```
 make images/image2
 build/image2 --both > image2.c
 build/image2 --both --header > image2.h
+```
+To create a BASIC program called `AUTOEXEC.BAS` that sets the palette correctly and loads `IMAGE.BIN`, use it like this:
+```
+make images/image3
+build/image3 --both --basic --file IMAGE.BIN > AUTOEXEC.BAS
+openmsx -machine Panasonic_FS-A1GT -diska .
 ```
 
 ## extra parameters
