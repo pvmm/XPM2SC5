@@ -29,10 +29,11 @@
 
 
 enum DATA_TYPE {
-    BOTH = 0,
-    IMAGE,                      // output image data only
-    PALETTE,                    // output palette data only
-} data = BOTH;
+    NONE = 0,
+    IMAGE = 1,                  // output image data (pattern) only
+    PALETTE = 2,                // output palette data (colors) only
+    BOTH = 3,
+} data = NONE;
 
 enum MODE {
     STDOUT = 0,                 // send C-style data to standard output
@@ -191,6 +192,16 @@ char* strlower(char* const s)
 }
 
 
+char* strupper(char* const s)
+{
+    static char t[50];
+    char *q = t;
+
+    for (char* p = s; *p; ++p, ++q) *q = toupper(*p);
+    return t;
+}
+
+
 void print_help()
 {
     fprintf(stdout, "\
@@ -216,7 +227,8 @@ int main(int argc, char **argv)
     int used_colors = 1;
     int unused_colors = 0;
     int skip0 = 0;
-    FILE *file = NULL;
+    char* filename = NULL;
+    FILE* file = NULL;
     int cpp;
     bool keep_unused = false;           // when true, unused colors are preserved in the palette.
     bool contains_palette = false;      // when true, first line starts with a palette that is removed after processing.
@@ -244,10 +256,6 @@ int main(int argc, char **argv)
         }
         // data
         if (strcmp(argv[i], "--change-to-black") == 0) {
-            if (data == IMAGE) {
-                fprintf(stderr, XPM_LABEL ": \"--change-to-black\" expects palette output\n");
-                exit(MODE_MISMATCH);
-            }
             if (argc == i + 1) {
                 fprintf(stderr, XPM_LABEL ": expects number after \"--change-to-black\"\n");
                 exit(PARAMETER_EXPECTED);
@@ -280,10 +288,6 @@ int main(int argc, char **argv)
             continue;
         }
         if (strcmp(argv[i], "--keep-unused") == 0) {
-            if (data == IMAGE) {
-                fprintf(stderr, XPM_LABEL ": \"--keep-unused\" expects palette output\n");
-                exit(MODE_MISMATCH);
-            }
             keep_unused = true;
             continue;
         }
@@ -292,11 +296,11 @@ int main(int argc, char **argv)
             continue;
         }
         if (strcmp(argv[i], "--palette") == 0) {
-            data = PALETTE;
+            data |= PALETTE;
             continue;
         }
         if (strcmp(argv[i], "--image") == 0) {
-            data = IMAGE;
+            data |= IMAGE;
             continue;
         }
         if (strcmp(argv[i], "--skip0") == 0) {
@@ -308,7 +312,7 @@ int main(int argc, char **argv)
                 fprintf(stderr, XPM_LABEL ": expects file name after \"--file\"\n");
                 exit(PARAMETER_EXPECTED);
             }
-            file = fopen(argv[i + 1], "wb");
+            filename = argv[i + 1];
             skip_next = true;
             continue;
         }
@@ -325,14 +329,41 @@ int main(int argc, char **argv)
             mode = BASIC;
             continue;
         }
-        if (strcmp(argv[i], "--") == 0) {
-            fprintf(stderr, XPM_LABEL ": unknown option \"%s\"\n", argv[i]);
-            exit(PARAMETER_TYPE);
-        }
-    }
-    if (mode == STDOUT && file != NULL) {
-        fprintf(stderr, XPM_LABEL ": STDOUT mode and file parameter are not compatible.\n");
+        // fails on anything else
+        fprintf(stderr, XPM_LABEL ": unknown option \"%s\"\n", argv[i]);
         exit(PARAMETER_TYPE);
+    }
+    if (data == NONE) {
+        fprintf(stderr, XPM_LABEL ": No data type defined for output\n");
+        exit(PARAMETER_EXPECTED);
+    }
+    if (data == BOTH && mode == RAW) {
+        fprintf(stderr, XPM_LABEL ": raw mode expects a single output\n");
+        exit(MODE_MISMATCH);
+    }
+    if (!(data & PALETTE) && keep_unused) {
+        fprintf(stderr, XPM_LABEL ": \"--keep-unused\" expects palette output\n");
+        exit(MODE_MISMATCH);
+    }
+    if (!(data & PALETTE) && change_to_black > -1) {
+        fprintf(stderr, XPM_LABEL ": \"--change-to-black\" expects palette output\n");
+        exit(MODE_MISMATCH);
+    }
+    if (mode == STDOUT && filename != NULL) {
+        fprintf(stderr, XPM_LABEL ": file parameter expects --raw or --basic mode\n");
+        exit(PARAMETER_TYPE);
+    }
+    if (mode == RAW && filename == NULL) {
+        fprintf(stderr, XPM_LABEL ": RAW mode expects an output file.\n");
+        exit(FILE_EXPECTED);
+    }
+    if (mode == BASIC && (data & IMAGE) && filename == NULL) {
+        fprintf(stderr, XPM_LABEL ": BASIC mode expects an output file.\n");
+        exit(FILE_EXPECTED);
+    }
+    // open specified file for output
+    if (filename != NULL) {
+        file = fopen(filename, "wb");
     }
     // scan first XPM line
     sscanf(XPM_DATA[0], "%d %d %d %d", &width, &height, &colors, &cpp);
@@ -392,6 +423,7 @@ int main(int argc, char **argv)
     }
     fprintf(stderr, XPM_LABEL ": Number of colors: %i\n", used_colors);
 
+    // check colors used
     if (screen == SCREEN5 && used_colors > MAX_SCREEN5_COLORS) {
         fprintf(stderr, XPM_LABEL ": expects max of 15 used colors, got %i (first color (0) is transparent)\n",
                 used_colors);
@@ -417,18 +449,21 @@ int main(int argc, char **argv)
     if (mode == HEADER) {
         printf("#include <stdint.h>\n\n");
 
-        if (data == IMAGE || data == BOTH) {
-            printf("#define " XPM_LABEL "_WIDTH %u\n", width);
-            printf("#define " XPM_LABEL "_HEIGHT %u\n\n", height - (contains_palette ? 1 : 0));
-        }
-
-        if (data == PALETTE || data == BOTH) {
+        if (data & PALETTE) {
             printf("extern const uint8_t %s_palette[%i];\n\n", strlower(XPM_LABEL), (used_colors - skip0) * 2);
         }
+
+        if (data & IMAGE) {
+            printf("#define " XPM_LABEL "_WIDTH %u\n", width);
+            printf("#define " XPM_LABEL "_HEIGHT %u\n\n", height - (contains_palette ? 1 : 0));
+            printf("extern const uint8_t %s_pattern[%u];\n\n", strlower(XPM_LABEL), width / 2 * height);
+        }
+
+        exit(OK);
     }
 
     else if (mode == STDOUT) {
-        if (data == PALETTE || data == BOTH) {
+        if (data & PALETTE) {
             printf("#include <stdint.h>\n\n");
             printf("const uint8_t %s_palette[%i] = {\n", strlower(XPM_LABEL), (used_colors - skip0) * 2);
 
@@ -457,88 +492,71 @@ int main(int argc, char **argv)
     }
 
     else if (mode == BASIC) {
-        if (data == PALETTE) {
-            int lineno = 0;
-            printf("%i SCREEN 5\r\n", lineno += 10);
+        int lineno = 0;
+        printf("%i SCREEN 5\r\n", lineno += 10);
+        if (data & PALETTE) {
             for (int8_t i = skip0; i < used_colors; ++i) {
                 printf("%i COLOR=(%i,%i,%i,%i)\r\n", lineno += 10, i, palette[i].r, palette[i].g, palette[i].b);
             }
-            printf("%i COPY \"IMAGE.BIN\" TO (0,0),0\r\n", lineno += 10);
-            printf("%i IF INKEY$=\"\" GOTO %i\r\n", lineno += 10, index);
-            printf("%i COPY (0,0)-(254,212),0 TO (1,0),0,XOR\r\n", lineno += 10);
-            printf("%i IF INKEY$=\"\" GOTO %i\r\n", lineno += 10, index);
-            exit(OK);
+        }
+        if (data & IMAGE) {
+            printf("%i COPY \"%s\" TO (0,0),0\r\n", lineno += 10, strupper(filename));
+            printf("%i IF INKEY$=\"\" GOTO %i\r\n", lineno += 10, lineno);
         }
     }
 
-
-    switch (mode) {
-    case HEADER:
-        printf("extern const uint8_t %s_pattern[%u];\n\n", strlower(XPM_LABEL), width / 2 * height);
-        break;
-
-    case STDOUT:
-        printf("const uint8_t %s_pattern[%u] = {\n\t", strlower(XPM_LABEL), width / 2 * height);
-        break;
-
-    default:
+    if (!(data & IMAGE)) {
+        // no image output, only palette.
+        exit(0);
     }
 
+    if (mode == STDOUT) {
+        if (!(data & PALETTE)) printf("#include <stdint.h>\n\n");
+        printf("const uint8_t %s_pattern[%u] = {\n\t", strlower(XPM_LABEL), width / 2 * height);
+    }
+
+    // output pattern
     unsigned int pos = 0;
 
-    if (mode != HEADER) {
-        if (mode == BASIC || mode == RAW) {
-            uint8_t header[4] = { width & 0xff, width >> 8, (height - (contains_palette ? 1 : 0)) & 0xff, (height - (contains_palette ? 1 : 0)) >> 8 };
-            if (file == NULL) {
-                fprintf(stderr, XPM_LABEL ": Output file expected.\n");
-                exit(FILE_EXPECTED);
-            }
-            fwrite(header, 1, 4, file);
-        }
-        for (int y = contains_palette ? 1 : 0; y < height ; ++y) {
-            const char* ptr = XPM_DATA[y + colors + 1];
-            uint8_t pixel1, pixel2;
-
-            for (int x = 0; x < width; x += 2) {
-                pixel1 = find_color(palette, used_colors, ptr, cpp);
-                ptr += cpp;
-
-                pixel2 = find_color(palette, used_colors, ptr, cpp);
-                ptr += cpp;
-
-                switch (mode) {
-                case STDOUT:
-                     if (pos > 0 && pos % 24 == 0) printf("\n\t");
-                     printf("0x%02X,", (pixel1 << 4) | pixel2);
-                     break;
-
-                case BASIC: case RAW: {
-                     uint8_t data[1] = { (pixel1 << 4) | pixel2 };
-                     fwrite(data, 1, 1, file);
-                     break;
-                }}
-                pos += 2;
-            }
-        }
-
-        if (mode == STDOUT) {
-            if (pos > 0) printf("\n");
-            printf("};\n\n");
-        }
-    } else {
-        pos += (height - (contains_palette ? 1 : 0)) * width;
+    if (mode == BASIC) {
+        uint8_t header[4] = { width & 0xff, width >> 8, (height - (contains_palette ? 1 : 0)) & 0xff, (height - (contains_palette ? 1 : 0)) >> 8 };
+        fwrite(header, 1, 4, file);
     }
 
-    switch (mode) {
-    case HEADER:
-        printf("#define " XPM_LABEL "_SIZE %u\n", pos / 2);
-        break;
+    for (int y = contains_palette ? 1 : 0; y < height ; ++y) {
+        const char* ptr = XPM_DATA[y + colors + 1];
+        uint8_t pixel1, pixel2;
 
-    case BASIC: case RAW:
+        for (int x = 0; x < width; x += 2) {
+            pixel1 = find_color(palette, used_colors, ptr, cpp);
+            ptr += cpp;
+
+            pixel2 = find_color(palette, used_colors, ptr, cpp);
+            ptr += cpp;
+
+            switch (mode) {
+                case STDOUT:
+                    if (pos > 0 && pos % 24 == 0) printf("\n\t");
+                    printf("0x%02X,", (pixel1 << 4) | pixel2);
+                    break;
+
+                case BASIC: case RAW: {
+                    uint8_t data[1] = { (pixel1 << 4) | pixel2 };
+                    fwrite(data, 1, 1, file);
+                    break;
+            }}
+
+            pos += 2;
+        }
+    }
+
+    if (mode == STDOUT) {
+        if (pos > 0) printf("\n");
+        printf("};\n\n");
+    }
+
+    if (mode != STDOUT) {
         fclose(file);
-        break;
-
-    default:
     }
 }
 
