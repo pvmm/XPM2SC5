@@ -356,7 +356,7 @@ int main(int argc, char **argv)
         exit(MODE_MISMATCH);
     }
     if (mode == STDOUT && filename != NULL) {
-        fprintf(stderr, XPM_LABEL ": file parameter expects \"--raw\" or \"--basic\" mode\n");
+        fprintf(stderr, XPM_LABEL ": file parameter expects \"--raw\" OR \"--basic\" mode only\n");
         exit(PARAMETER_TYPE);
     }
     if (mode == RAW && filename == NULL) {
