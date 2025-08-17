@@ -214,7 +214,7 @@ void print_help()
 --both                   Outputs both palette and image.\n\
 --header                 Outputs C-style header file.\n\
 --file <filename>        Output binary output to file.\n\
---raw                    Outputs raw file (VRAM memory dump).\n\
+--raw                    Outputs raw file (RAM memory dump without dimension data).\n\
 --basic                  Outputs BASIC to stdout and respective VRAM COPY to file.\n\
 --trans-color <RRGGBB>   Supply hex string RRGGBB as a transparent color replacement.\n\
 --skip0                  Skip color 0 (transparent) in output files.\n");
