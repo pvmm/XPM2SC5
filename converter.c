@@ -25,6 +25,7 @@
 #define PARAMETER_TYPE     2
 #define MODE_MISMATCH      3
 #define INVALID_VALUE      4
+#define FILE_EXPECTED      5
 
 
 enum DATA_TYPE {
@@ -190,6 +191,23 @@ char* strlower(char* const s)
 }
 
 
+void print_help()
+{
+    fprintf(stdout, "\
+--screen5                Outputs a SCREEN5 compatible image (256 width max. with 15 colors).\n\
+--v9990                  Outputs a P1 mode compatible image (V9990 graphics card).\n\
+--keep-unused            Unused palette colors are still converted to output file.\n\
+--contains-palette       Get palette colors and order from first disposable line of the image.\n\
+--palette                Outputs palette too.\n\
+--image                  Outputs image too.\n\
+--header                 Outputs C-style header file.\n\
+--raw                    Outputs raw file (VRAM memory dump).\n\
+--basic                  Outputs BASIC file and respective BIN file.\n\
+--trans-color <RRGGBB>   Supply hex string RRGGBB as a transparent color replacement.\n\
+--skip0                  Ignore color 0 (transparent) in output files.\n");
+}
+
+
 int main(int argc, char **argv)
 {
     int width;
@@ -197,6 +215,7 @@ int main(int argc, char **argv)
     int colors;
     int used_colors = 1;
     int unused_colors = 0;
+    int skip0 = 0;
     FILE *file = NULL;
     int cpp;
     bool keep_unused = false;           // when true, unused colors are preserved in the palette.
@@ -208,6 +227,11 @@ int main(int argc, char **argv)
         if (skip_next) {
             skip_next = false;
             continue;
+        }
+        // help message
+        if (strcmp(argv[i], "--help") == 0) {
+            print_help();
+            exit(OK);
         }
         // screen type
         if (strcmp(argv[i], "--screen5") == 0) {
@@ -275,19 +299,26 @@ int main(int argc, char **argv)
             data = IMAGE;
             continue;
         }
+        if (strcmp(argv[i], "--skip0") == 0) {
+            skip0 = 1;
+            continue;
+        }
+        if (strcmp(argv[i], "--file") == 0) {
+            if (argc == i + 1) {
+                fprintf(stderr, XPM_LABEL ": expects file name after \"--file\"\n");
+                exit(PARAMETER_EXPECTED);
+            }
+            file = fopen(argv[i + 1], "wb");
+            skip_next = true;
+            continue;
+        }
         // mode
         if (mode == STDOUT && strcmp(argv[i], "--header") == 0) {
             mode = HEADER;
             continue;
         }
-        if ((mode == STDOUT || mode == BASIC) && strcmp(argv[i], "--raw") == 0) {
-            if (mode == STDOUT) mode = RAW;
-            if (argc == i + 1) {
-                fprintf(stderr, XPM_LABEL ": expects raw filename after \"--raw\"\n");
-                exit(PARAMETER_EXPECTED);
-            }
-            file = fopen(argv[i + 1], "wb");
-            skip_next = true;
+        if (strcmp(argv[i], "--raw") == 0) {
+            mode = RAW;
             continue;
         }
         if (strcmp(argv[i], "--basic") == 0) {
@@ -298,6 +329,10 @@ int main(int argc, char **argv)
             fprintf(stderr, XPM_LABEL ": unknown option \"%s\"\n", argv[i]);
             exit(PARAMETER_TYPE);
         }
+    }
+    if (mode == STDOUT && file != NULL) {
+        fprintf(stderr, XPM_LABEL ": STDOUT mode and file parameter are not compatible.\n");
+        exit(PARAMETER_TYPE);
     }
     // scan first XPM line
     sscanf(XPM_DATA[0], "%d %d %d %d", &width, &height, &colors, &cpp);
@@ -342,6 +377,9 @@ int main(int argc, char **argv)
         else if (keep_unused && used_colors < MAX_SCREEN5_COLORS) {
             register_color(ptr++, file_index, used_colors++, cpp, IGNORED);
             unused_colors++;
+        } else {
+            fprintf(stderr, XPM_LABEL ": WARNING: unused color at #%i (\"%s\") found\n", file_index, s);
+            unused_colors++;
         }
     }
     // if trans_color is defined, overwrite color 0
@@ -385,16 +423,16 @@ int main(int argc, char **argv)
         }
 
         if (data == PALETTE || data == BOTH) {
-            printf("extern const uint8_t %s_palette[%i];\n\n", strlower(XPM_LABEL), used_colors * 2);
+            printf("extern const uint8_t %s_palette[%i];\n\n", strlower(XPM_LABEL), (used_colors - skip0) * 2);
         }
     }
 
     else if (mode == STDOUT) {
         if (data == PALETTE || data == BOTH) {
             printf("#include <stdint.h>\n\n");
-            printf("const uint8_t %s_palette[%i] = {\n", strlower(XPM_LABEL), used_colors * 2);
+            printf("const uint8_t %s_palette[%i] = {\n", strlower(XPM_LABEL), (used_colors - skip0) * 2);
 
-            for (int8_t i = 0; i < used_colors; i++) {
+            for (int8_t i = skip0; i < used_colors; i++) {
                 // set YS bit on color 0 (transparent)
                 printf("\t0x%02X,0x%02X, /* %02d: 0x%02X, 0x%02X, 0x%02X %s*/\n",
                        palette[i].r * 16 + palette[i].b, palette[i].g,
@@ -407,7 +445,7 @@ int main(int argc, char **argv)
 
     else if (mode == RAW) {
         if (data == PALETTE) {
-            for (int8_t i = 0; i < used_colors; ++i) {
+            for (int8_t i = skip0; i < used_colors; ++i) {
                 // set YS bit on color 0 (transparent)
                 uint8_t ys = (screen == P1 && i == 0) ? 128 : 0;
                 char data[3] = { ys | palette[i].r, palette[i].g, palette[i].b, };
@@ -420,15 +458,15 @@ int main(int argc, char **argv)
 
     else if (mode == BASIC) {
         if (data == PALETTE) {
-            printf("10 SCREEN 5\r\n");
-            for (int8_t i = 0; i < used_colors; ++i) {
-                printf("%i COLOR=(%i,%i,%i,%i)\r\n", (i + 1) * 10, i, palette[i].r, palette[i].g, palette[i].b);
+            int lineno = 0;
+            printf("%i SCREEN 5\r\n", lineno += 10);
+            for (int8_t i = skip0; i < used_colors; ++i) {
+                printf("%i COLOR=(%i,%i,%i,%i)\r\n", lineno += 10, i, palette[i].r, palette[i].g, palette[i].b);
             }
-            int index = used_colors * 10;
-            printf("%i COPY \"IMAGE.BIN\" TO (0,0),0\r\n", index += 10);
-            printf("%i IF INKEY$=\"\" GOTO %i\r\n", index += 10, index);
-            printf("%i COPY (0,0)-(254,212),0 TO (1,0),0,XOR\r\n", index += 10);
-            printf("%i IF INKEY$=\"\" GOTO %i\r\n", index += 10, index);
+            printf("%i COPY \"IMAGE.BIN\" TO (0,0),0\r\n", lineno += 10);
+            printf("%i IF INKEY$=\"\" GOTO %i\r\n", lineno += 10, index);
+            printf("%i COPY (0,0)-(254,212),0 TO (1,0),0,XOR\r\n", lineno += 10);
+            printf("%i IF INKEY$=\"\" GOTO %i\r\n", lineno += 10, index);
             exit(OK);
         }
     }
@@ -449,9 +487,12 @@ int main(int argc, char **argv)
     unsigned int pos = 0;
 
     if (mode != HEADER) {
-        if (mode == BASIC) {
+        if (mode == BASIC || mode == RAW) {
             uint8_t header[4] = { width & 0xff, width >> 8, (height - (contains_palette ? 1 : 0)) & 0xff, (height - (contains_palette ? 1 : 0)) >> 8 };
-            assert(file != NULL);
+            if (file == NULL) {
+                fprintf(stderr, XPM_LABEL ": Output file expected.\n");
+                exit(FILE_EXPECTED);
+            }
             fwrite(header, 1, 4, file);
         }
         for (int y = contains_palette ? 1 : 0; y < height ; ++y) {
