@@ -211,11 +211,13 @@ void print_help()
 --contains-palette       Get palette colors and order from first disposable line of the image.\n\
 --palette                Outputs palette too.\n\
 --image                  Outputs image too.\n\
+--both                   Outputs both palette and image.\n\
 --header                 Outputs C-style header file.\n\
+--file <filename>        Output binary output to file.\n\
 --raw                    Outputs raw file (VRAM memory dump).\n\
---basic                  Outputs BASIC file and respective BIN file.\n\
+--basic                  Outputs BASIC to stdout and respective VRAM COPY to file.\n\
 --trans-color <RRGGBB>   Supply hex string RRGGBB as a transparent color replacement.\n\
---skip0                  Ignore color 0 (transparent) in output files.\n");
+--skip0                  Skip color 0 (transparent) in output files.\n");
 }
 
 
@@ -303,6 +305,10 @@ int main(int argc, char **argv)
             data |= IMAGE;
             continue;
         }
+        if (strcmp(argv[i], "--both") == 0) {
+            data = BOTH;
+            continue;
+        }
         if (strcmp(argv[i], "--skip0") == 0) {
             skip0 = 1;
             continue;
@@ -350,7 +356,7 @@ int main(int argc, char **argv)
         exit(MODE_MISMATCH);
     }
     if (mode == STDOUT && filename != NULL) {
-        fprintf(stderr, XPM_LABEL ": file parameter expects --raw or --basic mode\n");
+        fprintf(stderr, XPM_LABEL ": file parameter expects \"--raw\" or \"--basic\" mode\n");
         exit(PARAMETER_TYPE);
     }
     if (mode == RAW && filename == NULL) {
