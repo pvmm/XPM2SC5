@@ -2,13 +2,13 @@
 
 Converts XPM file into SCREEN5/V9990 (p1 mode) without any additional library other than libc. This is done by creating an executable that `#include`s the XPM file as source code, since XPM files are C-compatible files. This project is meant to be used inside another, by a parent Makefile calling this Makefile inside a subdirectory. If the image is called `image1.xpm`, run the code like this:
 ```
-make images/image1.raw
+make images/image1
 build/image1 --raw build/image1.raw
 build/image1 --header > build/image1.h
 ```
 to create a raw VRAM file called `image2.raw`. You may also create `.c` and `.h` files with the following commands:
 ```
-make images/image2.c
+make images/image2
 build/image2 > build/image2.c
 build/image2 --header > build/image2.h
 ```
