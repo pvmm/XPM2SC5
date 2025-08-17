@@ -19,6 +19,7 @@
 #define MAX_V9990_COLORS   16
 #define USED               true
 #define IGNORED            false
+#define RGB_TXT_SIZE       782
 // error codes
 #define OK                 0
 #define PARAMETER_EXPECTED 1
@@ -26,7 +27,6 @@
 #define MODE_MISMATCH      3
 #define INVALID_VALUE      4
 #define FILE_EXPECTED      5
-
 
 enum DATA_TYPE {
     NONE = 0,
@@ -61,6 +61,18 @@ struct palette {
 
 struct palette* palette_ptr;
 
+// add rgb.txt as binary data
+extern const char _binary_rgb_txt_start[];
+extern const char _binary_rgb_txt_end[];
+
+// map rgb.txt to palette map
+struct palette_map {
+    char name[100];
+    int r;
+    int g;
+    int b;
+} rgb_map[RGB_TXT_SIZE];
+
 // set specific color as transparent (index 0)
 char  trans_color_s[10] = { '#', 0 };
 char* trans_color = NULL;
@@ -87,24 +99,57 @@ bool is_transparent_color(const char* s)
 }
 
 
+void create_rgb_map()
+{
+    const char* ptr = _binary_rgb_txt_start;
+
+    for (unsigned i = 0; i < RGB_TXT_SIZE; ++i) {
+        uint8_t r, g, b;
+        sscanf(ptr, "%hhu %hhu %hhu %[^\n]", &rgb_map[i].r, &rgb_map[i].g, &rgb_map[i].b,
+        	rgb_map[i].name);
+        while (*ptr != '\n') ptr++;
+        ptr++;
+    }
+}
+
+
+int scan_rgb(const char* color, int* r, int* g, int* b)
+{
+    for (int i = 0; i < RGB_TXT_SIZE; ++i) {
+        if (strcmp(color, rgb_map[i].name) == 0) {
+            *r = rgb_map[i].r;
+            *g = rgb_map[i].g;
+            *b = rgb_map[i].b;
+            return 3;
+        }
+    }
+    return 0;
+}
+
+
 void do_register_color(struct palette* palette, int hw_index, const char* color)
 {
-    unsigned int r = 0, g = 0, b = 0;
-    int component = (screen == P1) ? 31 : 7;
+    int r = 0;
+    int g = 0;
+    int b = 0;
 
     // special case for alpha channel
     if (strcmp(color, "None") != 0) {
-        if (sscanf(color, "#%02x%02x%02x", &r, &g, &b) != 3) {
+        if (sscanf(color, "#%02x%02x%02x", &r, &g, &b) == 3) {
+            goto ok;
+        } else if (!scan_rgb(color, &r, &g, &b)) {
             fprintf(stderr, XPM_LABEL ": parse error at \"%s\".\n", color);
             return;
         }
     }
 
-    r = r & 0xff;
-    g = g & 0xff;
-    b = b & 0xff;
+ok:
+    r &= 0xff;
+    g &= 0xff;
+    b &= 0xff;
 
     palette->ci = hw_index;
+    const int component = (screen == P1) ? 31 : 7;
     palette->r = (uint8_t) ((double) r) * component / 0xff;
     palette->g = (uint8_t) ((double) g) * component / 0xff;
     palette->b = (uint8_t) ((double) b) * component / 0xff;
@@ -382,6 +427,8 @@ int main(int argc, char **argv)
         exit(INVALID_VALUE);
     }
 
+    create_rgb_map();
+
     struct palette* palette = alloca(sizeof(struct palette) * (colors + 1));
     memset(palette, 0, sizeof(struct palette) * (colors + 1));
     // reserve first element for transparent color
@@ -396,7 +443,7 @@ int main(int argc, char **argv)
             if (!replace_count) {
                 trans_color_found = true;
                 if (register_color(&palette[0], file_index, 0, cpp, USED) == 0) {
-                    fprintf(stderr, XPM_LABEL ": transparent color at #%i (\"%s\") found\n", file_index, s);
+                    fprintf(stderr, XPM_LABEL ": transparent color at line %i (\"%s\") found\n", file_index, s);
                 } else {
                     fprintf(stderr, XPM_LABEL ": error at %s\n", s);
                 }

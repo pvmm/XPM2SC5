@@ -1,4 +1,5 @@
 CC := gcc
+LD := ld
 
 TMP := $(basename $(notdir $(MAKECMDGOALS)))
 EXT := $(suffix $(MAKECMDGOALS))
@@ -48,7 +49,8 @@ $(MAKECMDGOALS): $(OUTPUT_FILE)
 
 .DELETE_ON_ERROR:
 $(OUTPUT_FILE): converter.c $(BUILD_DIR) $(INPUT_FILE)
-	$(CC) $(CFLAGS) $(XPM_INCLUDE) -DXPM_DATA="$(FIELD)" -DXPM_LABEL="\"$(TAG_NAME)\"" -o $(OUTPUT_FILE) $<
+	$(LD) -r -b binary rgb.txt -o rgb.o
+	$(CC) $(CFLAGS) $(XPM_INCLUDE) -DXPM_DATA="$(FIELD)" -DXPM_LABEL="\"$(TAG_NAME)\"" -o $(OUTPUT_FILE) $< rgb.o
 
 clean:
 	rm -rf $(BUILD_DIR)
