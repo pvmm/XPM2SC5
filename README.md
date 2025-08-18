@@ -1,19 +1,19 @@
 # XPM2SC5
 
-Converts XPM file into SCREEN5/V9990 (p1 mode) without any additional library other than libc. This is done by creating an executable that `#include`s the XPM file as source code, since XPM files are C-compatible files. This project is meant to be used inside another, by a parent Makefile calling this Makefile inside a subdirectory. If the image is called `image1.xpm`, run the code like this:
+Converts XPM file into SCREEN5/V9990 (p1 mode) without any additional library other than libc. This is done by creating an executable that `#include`s the XPM file as source code, since XPM files are C-compatible files. This project should work on windows if you use the WSL (Windows Subsystem for Linux). It is meant to be used inside another, by a parent Makefile calling this Makefile inside a subdirectory. If the image is called `image1.xpm`, run the code like this:
 ```
 make images/image1
 build/image1 --image --raw --file image1.raw
 build/image1 --palette --raw --file image1.pal
 build/image1 --both --header > image1.h
 ```
-To create a raw VRAM file called `image2.raw`. You may also create `.c` and `.h` files with the following commands:
+To create a raw RAM file called `image2.raw` that you can dump to ROM or RAM. You may also create `.c` and `.h` (source and header files) with the following commands:
 ```
 make images/image2
 build/image2 --both > image2.c
 build/image2 --both --header > image2.h
 ```
-To create a BASIC program called `AUTOEXEC.BAS` that sets the palette correctly and loads `IMAGE.BIN`, use it like this:
+to create a BASIC program called `AUTOEXEC.BAS` that sets the palette correctly and loads `IMAGE.BIN`, use it like this:
 ```
 make images/image3
 build/image3 --both --basic --file IMAGE.BIN > AUTOEXEC.BAS
