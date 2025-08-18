@@ -1,5 +1,6 @@
 .*.swp
 *.h
 *.raw
+*.o
 converter
 build/

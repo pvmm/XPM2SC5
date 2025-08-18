@@ -49,8 +49,8 @@ $(MAKECMDGOALS): $(OUTPUT_FILE)
 
 .DELETE_ON_ERROR:
 $(OUTPUT_FILE): converter.c $(BUILD_DIR) $(INPUT_FILE)
-	$(LD) -r -b binary rgb.txt -o rgb.o
-	$(CC) $(CFLAGS) $(XPM_INCLUDE) -DXPM_DATA="$(FIELD)" -DXPM_LABEL="\"$(TAG_NAME)\"" -o $(OUTPUT_FILE) $< rgb.o
+	$(LD) -r -b binary rgb.txt -o $(BUILD_DIR)/rgb.o
+	$(CC) $(CFLAGS) $(XPM_INCLUDE) -DXPM_DATA="$(FIELD)" -DXPM_LABEL="\"$(TAG_NAME)\"" -o $(OUTPUT_FILE) $< $(BUILD_DIR)/rgb.o
 
 clean:
 	rm -rf $(BUILD_DIR)
