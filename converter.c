@@ -84,7 +84,7 @@ bool is_transparent_color(const char* s)
     char color[100];
     char c;
 
-    if (sscanf(s, "%c c %s", &c, &color) != 2) {
+    if (sscanf(s, "%c c %s", &c, color) != 2) {
         fprintf(stderr, XPM_LABEL ": parse error at \"%s\": color ignored.\n", s);
         return false;
     }
@@ -105,7 +105,7 @@ void create_rgb_map()
 
     for (unsigned i = 0; i < RGB_TXT_SIZE; ++i) {
         uint8_t r, g, b;
-        sscanf(ptr, "%hhu %hhu %hhu %[^\n]", &rgb_map[i].r, &rgb_map[i].g, &rgb_map[i].b,
+        sscanf(ptr, "%u %u %u %[^\n]", &rgb_map[i].r, &rgb_map[i].g, &rgb_map[i].b,
         	rgb_map[i].name);
         while (*ptr != '\n') ptr++;
         ptr++;
@@ -166,7 +166,7 @@ int register_color(struct palette* palette, int file_index, int8_t hw_index, int
     char color[100];
     char c;
 
-    if (sscanf(&s[cpp], "%c c %s", &c, &color) != 2) {
+    if (sscanf(&s[cpp], "%c c %s", &c, color) != 2) {
         fprintf(stderr, XPM_LABEL ": parse error at line %i: color ignored.\n", file_index);
         return -1;
     }
